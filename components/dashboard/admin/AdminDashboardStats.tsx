@@ -1,9 +1,6 @@
-"use client";
+﻿"use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -11,23 +8,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   BarChart3,
-  Download,
+  CheckCircle,
+  Clock,
   GraduationCap,
-  Search,
   ShieldAlert,
   UserCheck,
   Users,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -35,6 +25,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -42,67 +35,60 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 
-interface Profile {
+interface Registration {
   id: string;
   name: string;
-  email: string;
-  phone: string | null;
+  mobile: string;
+  email: string | null;
+  batch: string;
   religion: string | null;
-  category: string;
-  batch: string | null;
-  transactionId: string | null;
   guestsUnder5: number;
   guests5AndAbove: number;
   totalGuests: number;
   totalAttendees: number;
-  isVerified: boolean;
+  tShirtSize: string | null;
+  paymentMethod: string | null;
+  transactionId: string | null;
+  amount: number;
+  status: string;
   createdAt: string;
 }
 
 const BATCHES = Array.from({ length: 11 }, (_, i) => String(2000 + i));
 
+const CHART_COLORS = [
+  "hsl(38, 90%, 55%)",
+  "hsl(350, 70%, 60%)",
+  "hsl(200, 70%, 55%)",
+  "hsl(150, 60%, 50%)",
+  "hsl(280, 60%, 55%)",
+  "hsl(30, 80%, 55%)",
+  "hsl(170, 60%, 50%)",
+];
+
 const AdminDashboardStats = () => {
   const { user, loading: authLoading } = useAuth();
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterBatch, setFilterBatch] = useState("all");
-  const [search, setSearch] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [chartBatch, setChartBatch] = useState("all");
 
   useEffect(() => {
-    const checkAdminAndFetch = async () => {
-      if (authLoading) return;
-
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      // Check if user is admin
-      if (user.role !== "admin") {
-        setIsAdmin(false);
-        setLoading(false);
-        return;
-      }
-
-      setIsAdmin(true);
-      await fetchProfiles();
-    };
-
-    checkAdminAndFetch();
+    if (!authLoading && user) {
+      fetchRegistrations();
+    } else if (!authLoading) {
+      setLoading(false);
+    }
   }, [user, authLoading]);
 
-  const fetchProfiles = async () => {
+  const fetchRegistrations = async () => {
     try {
-      const response = await fetch("/api/admin/profiles");
-      if (response.ok) {
-        const data = await response.json();
-        setProfiles(data);
+      const res = await fetch("/api/admin/registrations");
+      if (res.ok) {
+        setRegistrations(await res.json());
       } else {
-        toast.error("Failed to fetch profiles");
+        toast.error("Failed to load registrations");
       }
-    } catch (error) {
-      console.error("Error fetching profiles:", error);
+    } catch {
       toast.error("An error occurred");
     } finally {
       setLoading(false);
@@ -117,7 +103,7 @@ const AdminDashboardStats = () => {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
         <ShieldAlert className="h-12 w-12 mb-4 opacity-40" />
@@ -129,81 +115,36 @@ const AdminDashboardStats = () => {
     );
   }
 
-  const totalMembers = profiles.length;
-  const totalGuests = profiles.reduce(
-    (sum, p) => sum + (p.totalGuests || 0),
-    0,
-  );
-  const totalAttendees = profiles.reduce(
-    (sum, p) => sum + (p.totalAttendees || 1),
-    0,
-  );
+  const totalRegistrars = registrations.length;
+  const totalGuests = registrations.reduce((s, r) => s + (r.totalGuests || 0), 0);
+  const totalAttendees = registrations.reduce((s, r) => s + (r.totalAttendees || 1), 0);
+  const pendingCount = registrations.filter((r) => r.status === "pending").length;
+  const approvedCount = registrations.filter((r) => r.status === "approved").length;
+  const rejectedCount = registrations.filter((r) => r.status === "rejected").length;
 
-  // Batch distribution
+  // Batch distribution chart
   const batchData = BATCHES.map((b) => ({
     batch: b,
-    count: profiles.filter((p) => p.batch === b).length,
-  })).filter((d) => d.count > 0);
+    registrars: registrations.filter((r) => r.batch === b).length,
+    attendees: registrations
+      .filter((r) => r.batch === b)
+      .reduce((s, r) => s + (r.totalAttendees || 1), 0),
+  })).filter((d) => d.registrars > 0);
 
-  // Filtered list
-  const filtered = profiles.filter((p) => {
-    if (filterBatch !== "all" && p.batch !== filterBatch) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        p.name?.toLowerCase().includes(q) ||
-        p.email?.toLowerCase().includes(q) ||
-        p.phone?.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  // Payment method distribution
+  const paymentData = ["bkash", "nagad", "rocket", "bank", "manual"]
+    .map((m) => ({
+      name: m.charAt(0).toUpperCase() + m.slice(1),
+      value: registrations.filter((r) => r.paymentMethod === m).length,
+    }))
+    .filter((d) => d.value > 0);
 
-  const exportCSV = () => {
-    const headers = [
-      "Name",
-      "Email",
-      "Phone",
-      "Religion",
-      "Batch",
-      "Guests Under 5",
-      "Guests 5+",
-      "Total Guests",
-      "Total Attendees",
-      "Registered",
-      "Verified",
-    ];
-    const rows = filtered.map((p) => [
-      p.name,
-      p.email,
-      p.phone || "",
-      p.religion || "",
-      p.batch || "",
-      String(p.guestsUnder5 || 0),
-      String(p.guests5AndAbove || 0),
-      String(p.totalGuests || 0),
-      String(p.totalAttendees || 1),
-      new Date(p.createdAt).toLocaleDateString(),
-      p.isVerified ? "Yes" : "No",
-    ]);
-    const csv = [headers, ...rows]
-      .map((r) => r.map((c) => `"${c}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `registrations_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-    toast.success("Export started");
-  };
-
-  const CHART_COLORS = [
-    "hsl(38, 90%, 55%)",
-    "hsl(350, 70%, 60%)",
-    "hsl(200, 70%, 55%)",
-    "hsl(150, 60%, 50%)",
-    "hsl(280, 60%, 55%)",
-  ];
+  // Status distribution
+  const statusData = [
+    { name: "Pending", value: pendingCount, color: "hsl(45, 90%, 55%)" },
+    { name: "Approved", value: approvedCount, color: "hsl(140, 60%, 50%)" },
+    { name: "Rejected", value: rejectedCount, color: "hsl(0, 70%, 55%)" },
+  ].filter((d) => d.value > 0);
 
   return (
     <div className="space-y-6">
@@ -212,27 +153,27 @@ const AdminDashboardStats = () => {
           Admin Dashboard
         </h2>
         <p className="text-muted-foreground mt-1">
-          Overview of all registrations
+          Registration overview and statistics
         </p>
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Card className="glass border-border/50">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
-              <GraduationCap size={22} className="text-primary" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <GraduationCap size={20} className="text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalMembers}</p>
-              <p className="text-xs text-muted-foreground">Batch Members</p>
+              <p className="text-2xl font-bold">{totalRegistrars}</p>
+              <p className="text-xs text-muted-foreground">Registrars</p>
             </div>
           </CardContent>
         </Card>
         <Card className="glass border-border/50">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-accent/15 flex items-center justify-center">
-              <UserCheck size={22} className="text-accent" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-accent/15 flex items-center justify-center shrink-0">
+              <UserCheck size={20} className="text-accent" />
             </div>
             <div>
               <p className="text-2xl font-bold">{totalGuests}</p>
@@ -241,177 +182,166 @@ const AdminDashboardStats = () => {
           </CardContent>
         </Card>
         <Card className="glass border-border/50">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
-              <Users size={22} className="text-primary" />
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <Users size={20} className="text-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold">{totalAttendees}</p>
-              <p className="text-xs text-muted-foreground">Total Attendees</p>
+              <p className="text-xs text-muted-foreground">Attendees</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass border-border/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-500/15 flex items-center justify-center shrink-0">
+              <Clock size={20} className="text-yellow-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{pendingCount}</p>
+              <p className="text-xs text-muted-foreground">Pending</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass border-border/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-500/15 flex items-center justify-center shrink-0">
+              <CheckCircle size={20} className="text-green-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{approvedCount}</p>
+              <p className="text-xs text-muted-foreground">Approved</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass border-border/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-red-500/15 flex items-center justify-center shrink-0">
+              <XCircle size={20} className="text-red-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{rejectedCount}</p>
+              <p className="text-xs text-muted-foreground">Rejected</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Batch distribution chart */}
-      {batchData.length > 0 && (
-        <Card className="glass border-border/50">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" /> Batch Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={batchData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(222, 30%, 18%)"
-                  />
-                  <XAxis
-                    dataKey="batch"
-                    stroke="hsl(220, 15%, 55%)"
-                    fontSize={12}
-                  />
-                  <YAxis
-                    stroke="hsl(220, 15%, 55%)"
-                    fontSize={12}
-                    allowDecimals={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(222, 40%, 10%)",
-                      border: "1px solid hsl(222, 30%, 18%)",
-                      borderRadius: 8,
-                      color: "hsl(40, 33%, 92%)",
-                    }}
-                  />
-                  <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                    {batchData.map((_, i) => (
-                      <Cell
-                        key={i}
-                        fill={CHART_COLORS[i % CHART_COLORS.length]}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Batch distribution */}
+        {batchData.length > 0 && (
+          <Card className="glass border-border/50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" /> Batch Distribution
+                </CardTitle>
+                <Select value={chartBatch} onValueChange={setChartBatch}>
+                  <SelectTrigger className="w-28 h-8 text-xs bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Registrars</SelectItem>
+                    <SelectItem value="attendees">Attendees</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={batchData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
+                    <XAxis dataKey="batch" stroke="hsl(220, 15%, 55%)" fontSize={12} />
+                    <YAxis stroke="hsl(220, 15%, 55%)" fontSize={12} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(222, 40%, 10%)",
+                        border: "1px solid hsl(222, 30%, 18%)",
+                        borderRadius: 8,
+                        color: "hsl(40, 33%, 92%)",
+                      }}
+                    />
+                    <Bar
+                      dataKey={chartBatch === "attendees" ? "attendees" : "registrars"}
+                      radius={[6, 6, 0, 0]}>
+                      {batchData.map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Filters */}
-      <Card className="glass border-border/50">
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle className="text-lg">All Registrations</CardTitle>
-            <Button variant="outline" size="sm" onClick={exportCSV}>
-              <Download className="h-4 w-4 mr-1.5" /> Export CSV
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search name, email, phone..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-background/50"
-              />
-            </div>
-            <Select value={filterBatch} onValueChange={setFilterBatch}>
-              <SelectTrigger className="w-[130px] bg-background/50">
-                <SelectValue placeholder="Batch" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Batches</SelectItem>
-                {BATCHES.map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {b}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Payment + Status pie charts */}
+        <div className="space-y-6">
+          {paymentData.length > 0 && (
+            <Card className="glass border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Payment Methods</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={paymentData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={70}
+                        label={({ name, value }) => `${name}: ${value}`}
+                        fontSize={11}>
+                        {paymentData.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Table */}
-          <div className="rounded-lg border border-border/50 overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Batch</TableHead>
-                  <TableHead>Guests</TableHead>
-                  <TableHead>Attendees</TableHead>
-                  <TableHead>Religion</TableHead>
-                  <TableHead>Registered</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center text-muted-foreground py-8">
-                      No registrations found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filtered.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell className="text-xs">{p.email}</TableCell>
-                      <TableCell className="text-xs">
-                        {p.phone || "—"}
-                      </TableCell>
-                      <TableCell>{p.batch || "—"}</TableCell>
-                      <TableCell>
-                        {p.totalGuests > 0 ? (
-                          <span className="text-xs">
-                            {p.totalGuests} (
-                            {p.guestsUnder5 > 0 ? `${p.guestsUnder5}<5` : ""}
-                            {p.guestsUnder5 > 0 && p.guests5AndAbove > 0
-                              ? ", "
-                              : ""}
-                            {p.guests5AndAbove > 0
-                              ? `${p.guests5AndAbove}≥5`
-                              : ""}
-                            )
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className="bg-primary/10 text-primary border-primary/30">
-                          {p.totalAttendees || 1}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {p.religion || "—"}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {new Date(p.createdAt).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-          </p>
-        </CardContent>
-      </Card>
+          {statusData.length > 0 && (
+            <Card className="glass border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Registration Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={70}
+                        label={({ name, value }) => `${name}: ${value}`}
+                        fontSize={11}>
+                        {statusData.map((d, i) => (
+                          <Cell key={i} fill={d.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

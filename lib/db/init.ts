@@ -1,30 +1,20 @@
-import clientPromise from "./mongodb";
+﻿import clientPromise from "./mongodb";
 
 let isInitialized = false;
 
 export async function initializeDatabase() {
   try {
-    // Prevent multiple initialization attempts
-    if (isInitialized) {
-      return true;
-    }
+    if (isInitialized) return true;
 
     const client = await clientPromise;
-
-    if (!client) {
-      throw new Error("MongoDB connection unavailable");
-    }
+    if (!client) throw new Error("MongoDB connection unavailable");
 
     const databaseName = process.env.MONGO_DATABASE_NAME || "reunion2026";
     const db = client.db(databaseName);
 
-    // Create users collection if it doesn't exist
-    const usersCollectionExists = await db
-      .listCollections({ name: "users" })
-      .toArray()
-      .then((collections) => collections.length > 0);
-
-    if (!usersCollectionExists) {
+    // --- Users collection (admin accounts only) ---
+    const usersExists = await db.listCollections({ name: "users" }).toArray().then((c) => c.length > 0);
+    if (!usersExists) {
       await db.createCollection("users", {
         validator: {
           $jsonSchema: {
@@ -33,22 +23,9 @@ export async function initializeDatabase() {
             properties: {
               _id: { bsonType: "objectId" },
               name: { bsonType: "string" },
-              email: {
-                bsonType: "string",
-                pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
-              },
+              email: { bsonType: "string", pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" },
               password: { bsonType: ["string", "null"] },
-              phone: { bsonType: ["string", "null"] },
-              tshirtSize: {
-                enum: ["XS", "S", "M", "L", "XL", "XXL", "XXXL", null],
-              },
-              religion: { bsonType: ["string", "null"] },
-              customReligion: { bsonType: ["string", "null"] },
-              category: { enum: ["student", "guest", null] },
-              batch: { bsonType: ["string", "null"] },
-              transactionId: { bsonType: ["string", "null"] },
-              authProvider: { enum: ["email", "google", null] },
-              role: { enum: ["user", "admin", "moderator"] },
+              role: { enum: ["admin", "moderator"] },
               isActive: { bsonType: "bool" },
               createdAt: { bsonType: "date" },
               updatedAt: { bsonType: "date" },
@@ -56,204 +33,54 @@ export async function initializeDatabase() {
           },
         },
       });
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("✅ Users collection created");
-      }
+      if (process.env.NODE_ENV === "development") console.log("Users collection created");
     }
+    const usersCol = db.collection("users");
+    await usersCol.createIndex({ email: 1 }, { unique: true });
+    await usersCol.createIndex({ role: 1 });
 
-    // Create indexes for users collection
-    const usersCollection = db.collection("users");
-    await usersCollection.createIndex({ email: 1 }, { unique: true });
-    await usersCollection.createIndex({ createdAt: -1 });
-    await usersCollection.createIndex({ role: 1 });
-    if (process.env.NODE_ENV === "development") {
-      console.log("✅ Users indexes created");
-    }
-
-    // Create admin collection if it doesn't exist
-    const adminCollectionExists = await db
-      .listCollections({ name: "admin" })
-      .toArray()
-      .then((collections) => collections.length > 0);
-
-    if (!adminCollectionExists) {
-      await db.createCollection("admin", {
+    // --- Registrations collection (public registrations) ---
+    const regsExists = await db.listCollections({ name: "registrations" }).toArray().then((c) => c.length > 0);
+    if (!regsExists) {
+      await db.createCollection("registrations", {
         validator: {
           $jsonSchema: {
             bsonType: "object",
-            required: ["userId", "role", "createdAt"],
+            required: ["name", "mobile", "batch", "tShirtSize", "paymentMethod", "status", "createdAt"],
             properties: {
               _id: { bsonType: "objectId" },
-              userId: { bsonType: "objectId" },
-              role: { enum: ["admin", "moderator", "viewer"] },
-              permissions: {
-                bsonType: "array",
-                items: {
-                  bsonType: "string",
-                  enum: [
-                    "manage_users",
-                    "manage_events",
-                    "view_reports",
-                    "manage_roles",
-                  ],
-                },
-              },
-              lastLogin: { bsonType: ["date", "null"] },
-              createdAt: { bsonType: "date" },
-              updatedAt: { bsonType: "date" },
-            },
-          },
-        },
-      });
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("✅ Admin collection created");
-      }
-    }
-
-    // Create indexes for admin collection
-    const adminCollection = db.collection("admin");
-    await adminCollection.createIndex({ userId: 1 }, { unique: true });
-    await adminCollection.createIndex({ role: 1 });
-    await adminCollection.createIndex({ createdAt: -1 });
-    if (process.env.NODE_ENV === "development") {
-      console.log("✅ Admin indexes created");
-    }
-
-    // Create students collection if it doesn't exist
-    const studentsCollectionExists = await db
-      .listCollections({ name: "students" })
-      .toArray()
-      .then((collections) => collections.length > 0);
-
-    if (!studentsCollectionExists) {
-      await db.createCollection("students", {
-        validator: {
-          $jsonSchema: {
-            bsonType: "object",
-            required: ["userId", "batch", "createdAt"],
-            properties: {
-              _id: { bsonType: "objectId" },
-              userId: { bsonType: "objectId" },
+              name: { bsonType: "string" },
+              mobile: { bsonType: "string" },
+              email: { bsonType: ["string", "null"] },
               batch: { bsonType: "string" },
               religion: { bsonType: ["string", "null"] },
-              customReligion: { bsonType: ["string", "null"] },
-              phone: { bsonType: ["string", "null"] },
+              guestsUnder5: { bsonType: "int" },
+              guests5AndAbove: { bsonType: "int" },
+              guestNames: { bsonType: "array" },
+              totalGuests: { bsonType: "int" },
+              totalAttendees: { bsonType: "int" },
+              tShirtSize: { enum: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"] },
+              paymentMethod: { enum: ["bkash", "nagad", "rocket", "bank", "manual"] },
               transactionId: { bsonType: ["string", "null"] },
+              amount: { bsonType: ["int", "double"] },
+              status: { enum: ["pending", "approved", "rejected"] },
               createdAt: { bsonType: "date" },
               updatedAt: { bsonType: "date" },
             },
           },
         },
       });
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("✅ Students collection created");
-      }
+      if (process.env.NODE_ENV === "development") console.log("Registrations collection created");
     }
+    const regsCol = db.collection("registrations");
+    await regsCol.createIndex({ mobile: 1 }, { unique: true });
+    await regsCol.createIndex({ batch: 1 });
+    await regsCol.createIndex({ status: 1 });
+    await regsCol.createIndex({ createdAt: -1 });
 
-    // Create indexes for students collection
-    const studentsCollection = db.collection("students");
-    await studentsCollection.createIndex({ userId: 1 }, { unique: true });
-    await studentsCollection.createIndex({ batch: 1 });
-    await studentsCollection.createIndex({ createdAt: -1 });
-    if (process.env.NODE_ENV === "development") {
-      console.log("✅ Students indexes created");
-    }
-
-    // Create guests collection if it doesn't exist
-    const guestsCollectionExists = await db
-      .listCollections({ name: "guests" })
-      .toArray()
-      .then((collections) => collections.length > 0);
-
-    if (!guestsCollectionExists) {
-      await db.createCollection("guests", {
-        validator: {
-          $jsonSchema: {
-            bsonType: "object",
-            required: ["userId", "createdAt"],
-            properties: {
-              _id: { bsonType: "objectId" },
-              userId: { bsonType: "objectId" },
-              religion: { bsonType: ["string", "null"] },
-              customReligion: { bsonType: ["string", "null"] },
-              phone: { bsonType: ["string", "null"] },
-              transactionId: { bsonType: ["string", "null"] },
-              createdAt: { bsonType: "date" },
-              updatedAt: { bsonType: "date" },
-            },
-          },
-        },
-      });
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("✅ Guests collection created");
-      }
-    }
-
-    // Create indexes for guests collection
-    const guestsCollection = db.collection("guests");
-    await guestsCollection.createIndex({ userId: 1 }, { unique: true });
-    await guestsCollection.createIndex({ createdAt: -1 });
-    if (process.env.NODE_ENV === "development") {
-      console.log("✅ Guests indexes created");
-    }
-
-    // Create tickets collection if it doesn't exist
-    const ticketsCollectionExists = await db
-      .listCollections({ name: "tickets" })
-      .toArray()
-      .then((collections) => collections.length > 0);
-
-    if (!ticketsCollectionExists) {
-      await db.createCollection("tickets", {
-        validator: {
-          $jsonSchema: {
-            bsonType: "object",
-            required: ["userId", "paymentStatus", "createdAt"],
-            properties: {
-              _id: { bsonType: "objectId" },
-              userId: { bsonType: "objectId" },
-              ticketId: { bsonType: ["string", "null"] },
-              paymentMethod: { enum: ["mfs", "bank", "manual", null] },
-              paymentStatus: { enum: ["pending", "paid", "rejected"] },
-              transactionId: { bsonType: ["string", "null"] },
-              amount: { bsonType: ["double", "int"] },
-              approvedAt: { bsonType: ["date", "null"] },
-              approvedBy: { bsonType: ["objectId", "null"] },
-              ticketGenerated: { bsonType: "bool" },
-              ticketGeneratedAt: { bsonType: ["date", "null"] },
-              ticketGeneratedBy: { bsonType: ["objectId", "null"] },
-              createdAt: { bsonType: "date" },
-              updatedAt: { bsonType: "date" },
-            },
-          },
-        },
-      });
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("✅ Tickets collection created");
-      }
-    }
-
-    // Create indexes for tickets collection
-    const ticketsCollection = db.collection("tickets");
-    await ticketsCollection.createIndex({ userId: 1 });
-    await ticketsCollection.createIndex({ paymentStatus: 1 });
-    await ticketsCollection.createIndex({ createdAt: -1 });
-    if (process.env.NODE_ENV === "development") {
-      console.log("✅ Tickets indexes created");
-    }
-
-    // Create contact_messages collection if it doesn't exist
-    const messagesCollectionExists = await db
-      .listCollections({ name: "contact_messages" })
-      .toArray()
-      .then((collections) => collections.length > 0);
-
-    if (!messagesCollectionExists) {
+    // --- Contact messages collection ---
+    const msgsExists = await db.listCollections({ name: "contact_messages" }).toArray().then((c) => c.length > 0);
+    if (!msgsExists) {
       await db.createCollection("contact_messages", {
         validator: {
           $jsonSchema: {
@@ -262,96 +89,29 @@ export async function initializeDatabase() {
             properties: {
               _id: { bsonType: "objectId" },
               name: { bsonType: "string" },
-              email: {
-                bsonType: "string",
-                pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
-              },
+              email: { bsonType: "string", pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" },
               phone: { bsonType: ["string", "null"] },
               subject: { bsonType: ["string", "null"] },
               message: { bsonType: "string" },
-              status: {
-                enum: ["unread", "read", "replied"],
-                default: "unread",
-              },
+              status: { enum: ["unread", "read", "replied"] },
               createdAt: { bsonType: "date" },
               updatedAt: { bsonType: "date" },
             },
           },
         },
       });
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("✅ Contact Messages collection created");
-      }
+      if (process.env.NODE_ENV === "development") console.log("Contact messages collection created");
     }
+    const msgsCol = db.collection("contact_messages");
+    await msgsCol.createIndex({ email: 1 });
+    await msgsCol.createIndex({ createdAt: -1 });
+    await msgsCol.createIndex({ status: 1 });
 
-    // Create indexes for contact_messages collection
-    const messagesCollection = db.collection("contact_messages");
-    await messagesCollection.createIndex({ email: 1 });
-    await messagesCollection.createIndex({ createdAt: -1 });
-    await messagesCollection.createIndex({ status: 1 });
-    if (process.env.NODE_ENV === "development") {
-      console.log("✅ Contact Messages indexes created");
-    }
-
-    // Migration: Add tshirtSize field to existing users if missing
-    const usersForMigration = db.collection("users");
-    const usersWithoutTshirtSize = await usersForMigration.countDocuments({
-      tshirtSize: { $exists: false },
-    });
-    if (usersWithoutTshirtSize > 0) {
-      await usersForMigration.updateMany(
-        { tshirtSize: { $exists: false } },
-        { $set: { tshirtSize: null, updatedAt: new Date() } },
-      );
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          `✅ Added tshirtSize field to ${usersWithoutTshirtSize} existing users`,
-        );
-      }
-    }
-
-    // Migration: Add ticket generation fields to existing tickets if missing
-    const ticketsForMigration = db.collection("tickets");
-    const ticketsWithoutGenFields = await ticketsForMigration.countDocuments({
-      $or: [
-        { ticketGenerated: { $exists: false } },
-        { ticketGeneratedAt: { $exists: false } },
-        { ticketGeneratedBy: { $exists: false } },
-      ],
-    });
-    if (ticketsWithoutGenFields > 0) {
-      await ticketsForMigration.updateMany(
-        {
-          $or: [
-            { ticketGenerated: { $exists: false } },
-            { ticketGeneratedAt: { $exists: false } },
-            { ticketGeneratedBy: { $exists: false } },
-          ],
-        },
-        {
-          $set: {
-            ticketGenerated: false,
-            ticketGeneratedAt: null,
-            ticketGeneratedBy: null,
-            updatedAt: new Date(),
-          },
-        },
-      );
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          `✅ Added ticket generation fields to ${ticketsWithoutGenFields} existing tickets`,
-        );
-      }
-    }
-
-    if (process.env.NODE_ENV === "development") {
-      console.log("✅ Database initialization complete!");
-    }
+    if (process.env.NODE_ENV === "development") console.log("Database initialization complete!");
     isInitialized = true;
     return true;
   } catch (error) {
-    console.error("❌ Database initialization error:", error);
+    console.error("Database initialization error:", error);
     return false;
   }
 }

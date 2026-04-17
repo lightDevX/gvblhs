@@ -1,4 +1,4 @@
-import { verifyPassword } from "@/lib/auth/password";
+﻿import { verifyPassword } from "@/lib/auth/password";
 import clientPromise from "@/lib/db/mongodb";
 import { signJWT } from "@/lib/tokens/jwt";
 import { NextRequest, NextResponse } from "next/server";
@@ -23,10 +23,9 @@ export async function POST(request: NextRequest) {
     }
 
     const client = await clientPromise;
-
     if (!client) {
       return NextResponse.json(
-        { error: "Database unavailable. Please try again later." },
+        { error: "Database unavailable" },
         { status: 503 },
       );
     }
@@ -36,17 +35,17 @@ export async function POST(request: NextRequest) {
     const usersCollection = db.collection("users");
 
     const user = await usersCollection.findOne({ email });
-    if (!user) {
+    if (!user || !user.password) {
       return NextResponse.json(
         { error: "Invalid credentials" },
         { status: 401 },
       );
     }
 
-    if (!user.password) {
+    if (user.role !== "admin") {
       return NextResponse.json(
-        { error: "This account uses OAuth. Please sign in with Google." },
-        { status: 401 },
+        { error: "Admin access only" },
+        { status: 403 },
       );
     }
 
@@ -61,13 +60,8 @@ export async function POST(request: NextRequest) {
     const token = await signJWT({
       userId: user._id.toString(),
       email: user.email,
-      role: user.role || "user",
+      role: "admin",
     });
-
-    const createdAt =
-      user.createdAt instanceof Date
-        ? user.createdAt.toISOString()
-        : new Date().toISOString();
 
     const response = NextResponse.json(
       {
@@ -76,17 +70,10 @@ export async function POST(request: NextRequest) {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
-          phone: user.phone || "",
-          tshirtSize: user.tshirtSize || "",
-          category: user.category || "student",
-          batch: user.batch || null,
-          guestsUnder5: user.guestsUnder5 || 0,
-          guests5AndAbove: user.guests5AndAbove || 0,
-          guestNames: user.guestNames || [],
-          totalGuests: user.totalGuests || 0,
-          totalAttendees: user.totalAttendees || 1,
-          role: user.role || "user",
-          createdAt,
+          role: "admin",
+          createdAt: user.createdAt instanceof Date
+            ? user.createdAt.toISOString()
+            : new Date().toISOString(),
         },
       },
       { status: 200 },

@@ -1,17 +1,17 @@
-"use client";
+﻿"use client";
 
-import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
+import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-const Login = () => {
+const AdminLogin = () => {
   const router = useRouter();
   const { user, login, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -20,25 +20,22 @@ const Login = () => {
 
   useEffect(() => {
     if (user && !authLoading) {
-      router.push("/dashboard");
+      router.push("/admin");
     }
   }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     if (!email || !password) {
       toast.error("Please fill in all fields");
       return;
     }
-
     setLoading(true);
     const result = await login(email, password);
     setLoading(false);
-
     if (result.success) {
-      toast.success("Welcome back!");
-      router.push("/dashboard");
+      toast.success("Welcome back, Admin!");
+      router.push("/admin");
     } else {
       toast.error(result.error || "Sign in failed");
     }
@@ -48,17 +45,14 @@ const Login = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
           <p className="mt-4 text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // Redirect if already logged in
-  if (user) {
-    return null;
-  }
+  if (user) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -68,13 +62,23 @@ const Login = () => {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md">
         <div className="glass-gold rounded-2xl p-8">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/15 mb-3">
+              <ShieldCheck className="text-primary" size={28} />
+            </div>
+            <h1 className="text-2xl font-display font-bold">Admin Login</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Authorized personnel only
+            </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder="admin@example.com"
                 required
                 className="bg-background/50"
                 value={email}
@@ -103,20 +107,9 @@ const Login = () => {
             </Button>
           </form>
 
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-border/50" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <div className="flex-1 h-px bg-border/50" />
-          </div>
-
-          <GoogleSignInButton />
-
           <p className="text-center text-sm text-muted-foreground mt-6">
-            {`Don't have an account?`}{" "}
-            <Link
-              href="/register"
-              className="text-primary hover:underline font-medium">
-              Register
+            <Link href="/" className="text-primary hover:underline font-medium">
+              Back to Home
             </Link>
           </p>
         </div>
@@ -125,4 +118,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default AdminLogin;

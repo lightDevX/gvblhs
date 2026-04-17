@@ -1,6 +1,5 @@
-"use client";
+﻿"use client";
 
-import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,44 +10,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
-import { Minus, Plus } from "lucide-react";
+import { CheckCircle, Minus, Plus } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 const RELIGIONS = ["Islam", "Hindu", "Christian", "Buddhist", "Custom"];
 const BATCHES = Array.from({ length: 11 }, (_, i) => String(2000 + i));
+const TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+const PAYMENT_METHODS = [
+  { value: "bkash", label: "Bkash" },
+  { value: "nagad", label: "Nagad" },
+  { value: "rocket", label: "Rocket" },
+  { value: "bank", label: "Bank" },
+  { value: "manual", label: "Manual Payment" },
+];
 
 const PRICE_PER_MEMBER = 800;
-const PRICE_PER_GUEST_UNDER5 = 0;
 const PRICE_PER_GUEST_5PLUS = 500;
 
 const Register = () => {
-  const router = useRouter();
-  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
+    mobile: "",
     email: "",
-    phone: "",
-    password: "",
-    transactionId: "",
+    batch: "",
     religion: "",
     customReligion: "",
-    batch: "",
+    tShirtSize: "",
+    paymentMethod: "",
+    transactionId: "",
     guestsUnder5: 0,
     guests5AndAbove: 0,
     guestNames: [] as string[],
   });
-
-  useEffect(() => {
-    if (user) {
-      router.push("/dashboard");
-    }
-  }, [user, router]);
 
   const update = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -79,62 +77,57 @@ const Register = () => {
   const totalGuests = formData.guestsUnder5 + formData.guests5AndAbove;
   const totalAttendees = 1 + totalGuests;
   const totalPrice =
-    PRICE_PER_MEMBER +
-    formData.guestsUnder5 * PRICE_PER_GUEST_UNDER5 +
-    formData.guests5AndAbove * PRICE_PER_GUEST_5PLUS;
+    PRICE_PER_MEMBER + formData.guests5AndAbove * PRICE_PER_GUEST_5PLUS;
+
+  const requiresTransactionId =
+    formData.paymentMethod !== "" && formData.paymentMethod !== "manual";
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!formData.phone.trim()) {
-      toast.error("Phone required", {
-        description: "Please enter your mobile number.",
-      });
+    if (!formData.name.trim()) {
+      toast.error("Full name is required");
       return;
     }
-
-    if (!formData.religion) {
-      toast.error("Religion required", {
-        description: "Please select your religion.",
-      });
+    if (!formData.mobile.trim()) {
+      toast.error("Mobile number is required");
       return;
     }
-
-    if (formData.religion === "Custom" && !formData.customReligion.trim()) {
-      toast.error("Custom religion required", {
-        description: "Please enter your religion.",
-      });
-      return;
-    }
-
     if (!formData.batch) {
-      toast.error("Batch required", {
-        description: "Please select your batch year.",
-      });
+      toast.error("Batch year is required");
       return;
     }
-
-    if (formData.password.length < 6) {
-      toast.error("Password too short", {
-        description: "Password must be at least 6 characters.",
-      });
+    if (!formData.tShirtSize) {
+      toast.error("T-Shirt size is required");
+      return;
+    }
+    if (!formData.paymentMethod) {
+      toast.error("Payment method is required");
+      return;
+    }
+    if (requiresTransactionId && !formData.transactionId.trim()) {
+      toast.error("Transaction ID is required for this payment method");
+      return;
+    }
+    if (formData.religion === "Custom" && !formData.customReligion.trim()) {
+      toast.error("Please enter your religion");
       return;
     }
 
     setLoading(true);
-
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          phone: formData.phone,
-          religion: formData.religion,
-          customReligion: formData.customReligion || undefined,
+          mobile: formData.mobile,
+          email: formData.email || undefined,
           batch: formData.batch,
+          religion: formData.religion || undefined,
+          customReligion: formData.customReligion || undefined,
+          tShirtSize: formData.tShirtSize,
+          paymentMethod: formData.paymentMethod,
           transactionId: formData.transactionId || undefined,
           guestsUnder5: formData.guestsUnder5,
           guests5AndAbove: formData.guests5AndAbove,
@@ -143,30 +136,50 @@ const Register = () => {
       });
 
       const data = await response.json();
-      setLoading(false);
 
       if (response.ok) {
-        toast.success("Registration successful!", {
-          description: "Your account has been created. Logging you in...",
-        });
-        router.push("/dashboard");
+        setSuccess(true);
+        toast.success("Registration successful!");
       } else {
-        toast.error("Registration failed", {
-          description: data.error || "Please try again later.",
-        });
+        toast.error(data.error || "Registration failed");
       }
-    } catch (error) {
+    } catch {
+      toast.error("An error occurred. Please try again.");
+    } finally {
       setLoading(false);
-      console.error("Registration error:", error);
-      toast.error("Registration failed", {
-        description: "An error occurred. Please try again later.",
-      });
     }
   };
 
-  // Show loading or redirect if already logged in
-  if (user) {
-    return null;
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-32">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md">
+          <div className="glass-gold rounded-2xl p-8 text-center space-y-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/20 mb-2">
+              <CheckCircle size={32} className="text-green-500" />
+            </div>
+            <h2 className="text-2xl font-display font-bold">
+              Registration Successful!
+            </h2>
+            <p className="text-muted-foreground">
+              Your registration has been submitted. An admin will review your
+              payment and confirm your registration.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Total: &#x09F3;{totalPrice} | Attendees: {totalAttendees}
+            </p>
+            <Link href="/">
+              <Button variant="outline" className="mt-4">
+                Back to Home
+              </Button>
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
   }
 
   return (
@@ -175,15 +188,24 @@ const Register = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md">
+        className="w-full max-w-xl">
         <div className="glass-gold rounded-2xl p-8">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-display font-bold">
+              Register for Reunion
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Fill in your details to reserve your spot
+            </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Full Name */}
             <div className="space-y-1.5">
               <Label htmlFor="name">Full Name *</Label>
               <Input
                 id="name"
-                placeholder="John Doe"
+                placeholder="Enter your full name"
                 required
                 className="bg-background/50"
                 value={formData.name}
@@ -192,32 +214,31 @@ const Register = () => {
               />
             </div>
 
-            {/* Email */}
+            {/* Mobile */}
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email Address *</Label>
+              <Label htmlFor="mobile">Mobile Number *</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                required
-                className="bg-background/50"
-                value={formData.email}
-                onChange={(e) => update("email", e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            {/* Phone */}
-            <div className="space-y-1.5">
-              <Label htmlFor="phone">Mobile Number *</Label>
-              <Input
-                id="phone"
+                id="mobile"
                 type="tel"
                 placeholder="+880 1XXX-XXXXXX"
                 required
                 className="bg-background/50"
-                value={formData.phone}
-                onChange={(e) => update("phone", e.target.value)}
+                value={formData.mobile}
+                onChange={(e) => update("mobile", e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            {/* Email (optional) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email (Optional)</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                className="bg-background/50"
+                value={formData.email}
+                onChange={(e) => update("email", e.target.value)}
                 disabled={loading}
               />
             </div>
@@ -242,28 +263,35 @@ const Register = () => {
               </Select>
             </div>
 
-            {/* Transaction ID */}
+            {/* T-Shirt Size */}
             <div className="space-y-1.5">
-              <Label htmlFor="txnId">Transaction ID (Optional)</Label>
-              <Input
-                id="txnId"
-                placeholder="Enter transaction ID"
-                className="bg-background/50"
-                value={formData.transactionId}
-                onChange={(e) => update("transactionId", e.target.value)}
-                disabled={loading}
-              />
+              <Label>T-Shirt Size *</Label>
+              <Select
+                value={formData.tShirtSize}
+                onValueChange={(v) => update("tShirtSize", v)}
+                disabled={loading}>
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue placeholder="Select Size" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TSHIRT_SIZES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Religion */}
             <div className="space-y-1.5">
-              <Label>Religion *</Label>
+              <Label>Religion</Label>
               <Select
                 value={formData.religion}
                 onValueChange={(v) => update("religion", v)}
                 disabled={loading}>
                 <SelectTrigger className="bg-background/50">
-                  <SelectValue placeholder="Select Religion" />
+                  <SelectValue placeholder="Select Religion (Optional)" />
                 </SelectTrigger>
                 <SelectContent>
                   {RELIGIONS.map((r) => (
@@ -274,8 +302,6 @@ const Register = () => {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Custom Religion */}
             {formData.religion === "Custom" && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
@@ -300,8 +326,6 @@ const Register = () => {
               <p className="text-xs text-muted-foreground -mt-1">
                 How many guests are you bringing along?
               </p>
-
-              {/* Guests Under 5 */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Under 5 years</p>
@@ -331,13 +355,11 @@ const Register = () => {
                   </Button>
                 </div>
               </div>
-
-              {/* Guests 5 and Above */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">5 years &amp; above</p>
                   <p className="text-xs text-muted-foreground">
-                    ৳{PRICE_PER_GUEST_5PLUS} per guest
+                    &#x09F3;{PRICE_PER_GUEST_5PLUS} per guest
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -398,6 +420,50 @@ const Register = () => {
               </motion.div>
             )}
 
+            {/* Payment Method */}
+            <div className="space-y-1.5">
+              <Label>Payment Method *</Label>
+              <Select
+                value={formData.paymentMethod}
+                onValueChange={(v) => {
+                  update("paymentMethod", v);
+                  if (v === "manual") {
+                    update("transactionId", "");
+                  }
+                }}
+                disabled={loading}>
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue placeholder="Select Payment Method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Transaction ID */}
+            {requiresTransactionId && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="space-y-1.5">
+                <Label htmlFor="txnId">Transaction ID *</Label>
+                <Input
+                  id="txnId"
+                  placeholder="Enter transaction ID"
+                  required
+                  className="bg-background/50"
+                  value={formData.transactionId}
+                  onChange={(e) => update("transactionId", e.target.value)}
+                  disabled={loading}
+                />
+              </motion.div>
+            )}
+
             {/* Summary */}
             <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 space-y-1 text-sm">
               <div className="flex justify-between">
@@ -427,60 +493,22 @@ const Register = () => {
                 <span>{totalAttendees}</span>
               </div>
               <div className="flex justify-between font-semibold text-primary">
-                <span>Estimated Cost</span>
-                <span>৳{totalPrice}</span>
+                <span>Total Cost</span>
+                <span>&#x09F3;{totalPrice}</span>
               </div>
-            </div>
-
-            {/* Password */}
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                required
-                minLength={6}
-                className="bg-background/50"
-                value={formData.password}
-                onChange={(e) => update("password", e.target.value)}
-                disabled={loading}
-              />
             </div>
 
             <Button
               type="submit"
               className="w-full glow-gold-sm"
               disabled={loading}>
-              {loading ? "Creating account..." : "Register"}
+              {loading ? "Submitting..." : "Register"}
             </Button>
           </form>
 
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-border/50" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <div className="flex-1 h-px bg-border/50" />
-          </div>
-
-          <GoogleSignInButton
-            additionalData={{
-              phone: formData.phone,
-              religion: formData.religion,
-              customReligion: formData.customReligion || undefined,
-              batch: formData.batch,
-              transactionId: formData.transactionId || undefined,
-              guestsUnder5: formData.guestsUnder5,
-              guests5AndAbove: formData.guests5AndAbove,
-              guestNames: formData.guestNames,
-            }}
-          />
-
           <p className="text-center text-sm text-muted-foreground mt-6">
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              className="text-primary hover:underline font-medium">
-              Sign In
+            <Link href="/" className="text-primary hover:underline font-medium">
+              Back to Home
             </Link>
           </p>
         </div>

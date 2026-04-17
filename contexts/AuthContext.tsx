@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import {
@@ -9,54 +9,35 @@ import {
   useState,
 } from "react";
 
-interface User {
+interface AdminUser {
   id: string;
   email: string;
   name: string;
-  phone?: string;
-  tshirtSize?: string;
-  role?: string;
-  category?: string;
-  batch?: string | null;
-  guestsUnder5?: number;
-  guests5AndAbove?: number;
-  guestNames?: string[];
-  totalGuests?: number;
-  totalAttendees?: number;
+  role: string;
   createdAt: string;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: AdminUser | null;
   loading: boolean;
   login: (
     email: string,
     password: string,
   ) => Promise<{ success: boolean; error?: string }>;
-  register: (
-    name: string,
-    email: string,
-    password: string,
-  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  updateUser: (userData: Partial<User>) => Promise<void>;
-  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   login: async () => ({ success: false }),
-  register: async () => ({ success: false }),
   logout: async () => {},
-  updateUser: async () => {},
-  setUser: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -68,15 +49,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-
       try {
         const response = await fetch("/api/auth/me", {
           signal: controller.signal,
         });
-
         if (response.ok) {
           const userData = await response.json();
-          setUser(userData);
+          if (userData.role === "admin") {
+            setUser(userData);
+          }
         }
       } finally {
         clearTimeout(timeoutId);
@@ -84,8 +65,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         console.error("Auth check failed: Request timeout");
-      } else {
-        console.error("Auth check failed:", error);
       }
     } finally {
       setLoading(false);
@@ -99,39 +78,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await response.json();
-
       if (response.ok) {
-        // Re-fetch full user from /api/auth/me for complete fields
+        if (data.user?.role !== "admin") {
+          await fetch("/api/auth/logout", { method: "POST" });
+          return { success: false, error: "Admin access only" };
+        }
         await checkAuth();
         return { success: true };
       } else {
         return { success: false, error: data.error };
       }
-    } catch (error) {
-      return { success: false, error: "An error occurred" };
-    }
-  };
-
-  const register = async (name: string, email: string, password: string) => {
-    try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setUser(data.user);
-        router.push("/dashboard");
-        return { success: true };
-      } else {
-        return { success: false, error: data.error };
-      }
-    } catch (error) {
+    } catch {
       return { success: false, error: "An error occurred" };
     }
   };
@@ -142,26 +100,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     router.push("/");
   };
 
-  const updateUser = async (userData: Partial<User>) => {
-    try {
-      const response = await fetch("/api/auth/update", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userData),
-      });
-
-      if (response.ok) {
-        const updatedUser = await response.json();
-        setUser(updatedUser);
-      }
-    } catch (error) {
-      console.error("Failed to update user:", error);
-    }
-  };
-
   return (
-    <AuthContext.Provider
-      value={{ user, loading, login, register, logout, updateUser, setUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

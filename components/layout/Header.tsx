@@ -76,7 +76,7 @@ const Header = () => {
             size="sm"
             className="glow-gold-sm"
             onClick={() => router.push("/register")}>
-            Get Ticket
+            Register
           </Button>
         </div>
 
@@ -120,7 +120,7 @@ const Header = () => {
                   size="sm"
                   className="flex-1"
                   onClick={() => router.push("/register")}>
-                  Get Ticket
+                  Register
                 </Button>
               </div>
             </div>

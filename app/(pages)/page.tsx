@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Calendar, MapPin, Ticket, Users } from "lucide-react";
+import { Calendar, MapPin, PartyPopper, Users } from "lucide-react";
 import Link from "next/link";
 
 const Home = () => {
@@ -51,11 +51,11 @@ const Home = () => {
                   🎫 Register Now
                 </Button>
               </Link>
-              <Link href="/login">
+              <Link href="/contact">
                 <Button
                   size="lg"
                   className="border-2 border-gold text-gold hover:bg-gold hover:text-navy font-display text-lg font-bold px-10 py-7 bg-transparent transition-all">
-                  Already Registered?
+                  Contact Us
                 </Button>
               </Link>
             </div>
@@ -144,21 +144,22 @@ const Home = () => {
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}>
-            <Ticket
+            <PartyPopper
               className="text-gold mx-auto mb-8 drop-shadow-lg"
               size={56}
             />
             <h2 className="text-4xl md:text-5xl font-display font-bold text-white mb-6">
-              Get Your <span className="text-gold">Entry Ticket</span>
+              Reserve Your <span className="text-gold">Spot Now</span>
             </h2>
             <p className="text-white/90 font-body text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-              {`Register now to receive your personalized entry ticket with a unique QR code. It's completely FREE!`}
+              Register today to secure your place at the reunion. Spaces are
+              limited — don&apos;t miss out!
             </p>
             <Link href="/register">
               <Button
                 size="lg"
                 className="bg-linear-to-r from-[#614385] to-[#516395] text-navy hover:from-gold hover:to-gold font-display text-lg font-bold px-12 py-8 shadow-xl hover:shadow-2xl hover:shadow-gold/50 transition-all glow-gold">
-                🎫 Register & Get Your Ticket
+                🎉 Register Now
               </Button>
             </Link>
           </motion.div>
