@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Mail, MapPin, Phone, Send } from "lucide-react";
+import { MapPin, Phone, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -69,9 +69,13 @@ const Contact = () => {
             {/* Contact Info */}
             <div className="space-y-6">
               {[
-                { icon: Mail, label: "Email", value: "hello@reunion2026.com" },
-                { icon: Phone, label: "Phone", value: "+1 (555) 123-4567" },
-                { icon: MapPin, label: "Location", value: "New York, NY" },
+                { icon: Phone, label: "Phone", value: "+880 1713-241716" },
+                {
+                  icon: MapPin,
+                  label: "Location",
+                  value:
+                    "Goonvari B. L. High School, Fulchari, Gaibandha, Bangladesh",
+                },
               ].map(({ icon: Icon, label, value }) => (
                 <Card key={label} className="glass border-border/50">
                   <CardContent className="flex items-center gap-4 p-5">
