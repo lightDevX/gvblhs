@@ -2,6 +2,7 @@
 
 import AdminDashboardStats from "@/components/dashboard/admin/AdminDashboardStats";
 import { useAuth } from "@/contexts/AuthContext";
+import { VALID_ROLES, type AdminRole } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -10,7 +11,7 @@ export default function AdminPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== "admin")) {
+    if (!loading && (!user || !VALID_ROLES.includes(user.role as AdminRole))) {
       router.push("/login");
     }
   }, [user, loading, router]);
@@ -23,7 +24,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user || !VALID_ROLES.includes(user.role as AdminRole)) {
     return null;
   }
 

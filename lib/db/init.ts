@@ -13,7 +13,10 @@ export async function initializeDatabase() {
     const db = client.db(databaseName);
 
     // --- Users collection (admin accounts only) ---
-    const usersExists = await db.listCollections({ name: "users" }).toArray().then((c) => c.length > 0);
+    const usersExists = await db
+      .listCollections({ name: "users" })
+      .toArray()
+      .then((c) => c.length > 0);
     if (!usersExists) {
       await db.createCollection("users", {
         validator: {
@@ -23,30 +26,52 @@ export async function initializeDatabase() {
             properties: {
               _id: { bsonType: "objectId" },
               name: { bsonType: "string" },
-              email: { bsonType: "string", pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" },
+              email: {
+                bsonType: "string",
+                pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+              },
               password: { bsonType: ["string", "null"] },
-              role: { enum: ["admin", "moderator"] },
+              mobile: { bsonType: ["string", "null"] },
+              role: { enum: ["main_admin", "admin", "sub_admin"] },
+              permissions: { bsonType: "array", items: { bsonType: "string" } },
+              fullAccess: { bsonType: "bool" },
+              mustChangePassword: { bsonType: "bool" },
               isActive: { bsonType: "bool" },
+              createdBy: { bsonType: ["objectId", "null"] },
+              updatedBy: { bsonType: ["objectId", "null"] },
+              lastLoginAt: { bsonType: ["date", "null"] },
               createdAt: { bsonType: "date" },
               updatedAt: { bsonType: "date" },
             },
           },
         },
       });
-      if (process.env.NODE_ENV === "development") console.log("Users collection created");
+      if (process.env.NODE_ENV === "development")
+        console.log("Users collection created");
     }
     const usersCol = db.collection("users");
     await usersCol.createIndex({ email: 1 }, { unique: true });
     await usersCol.createIndex({ role: 1 });
 
     // --- Registrations collection (public registrations) ---
-    const regsExists = await db.listCollections({ name: "registrations" }).toArray().then((c) => c.length > 0);
+    const regsExists = await db
+      .listCollections({ name: "registrations" })
+      .toArray()
+      .then((c) => c.length > 0);
     if (!regsExists) {
       await db.createCollection("registrations", {
         validator: {
           $jsonSchema: {
             bsonType: "object",
-            required: ["name", "mobile", "batch", "tShirtSize", "paymentMethod", "status", "createdAt"],
+            required: [
+              "name",
+              "mobile",
+              "batch",
+              "tShirtSize",
+              "paymentMethod",
+              "status",
+              "createdAt",
+            ],
             properties: {
               _id: { bsonType: "objectId" },
               name: { bsonType: "string" },
@@ -60,7 +85,9 @@ export async function initializeDatabase() {
               totalGuests: { bsonType: "int" },
               totalAttendees: { bsonType: "int" },
               tShirtSize: { enum: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"] },
-              paymentMethod: { enum: ["bkash", "nagad", "rocket", "bank", "manual"] },
+              paymentMethod: {
+                enum: ["bkash", "nagad", "rocket", "bank", "manual"],
+              },
               transactionId: { bsonType: ["string", "null"] },
               amount: { bsonType: ["int", "double"] },
               status: { enum: ["pending", "approved", "rejected"] },
@@ -70,7 +97,8 @@ export async function initializeDatabase() {
           },
         },
       });
-      if (process.env.NODE_ENV === "development") console.log("Registrations collection created");
+      if (process.env.NODE_ENV === "development")
+        console.log("Registrations collection created");
     }
     const regsCol = db.collection("registrations");
     await regsCol.createIndex({ mobile: 1 }, { unique: true });
@@ -79,7 +107,10 @@ export async function initializeDatabase() {
     await regsCol.createIndex({ createdAt: -1 });
 
     // --- Contact messages collection ---
-    const msgsExists = await db.listCollections({ name: "contact_messages" }).toArray().then((c) => c.length > 0);
+    const msgsExists = await db
+      .listCollections({ name: "contact_messages" })
+      .toArray()
+      .then((c) => c.length > 0);
     if (!msgsExists) {
       await db.createCollection("contact_messages", {
         validator: {
@@ -89,7 +120,10 @@ export async function initializeDatabase() {
             properties: {
               _id: { bsonType: "objectId" },
               name: { bsonType: "string" },
-              email: { bsonType: "string", pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" },
+              email: {
+                bsonType: "string",
+                pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+              },
               phone: { bsonType: ["string", "null"] },
               subject: { bsonType: ["string", "null"] },
               message: { bsonType: "string" },
@@ -100,14 +134,16 @@ export async function initializeDatabase() {
           },
         },
       });
-      if (process.env.NODE_ENV === "development") console.log("Contact messages collection created");
+      if (process.env.NODE_ENV === "development")
+        console.log("Contact messages collection created");
     }
     const msgsCol = db.collection("contact_messages");
     await msgsCol.createIndex({ email: 1 });
     await msgsCol.createIndex({ createdAt: -1 });
     await msgsCol.createIndex({ status: 1 });
 
-    if (process.env.NODE_ENV === "development") console.log("Database initialization complete!");
+    if (process.env.NODE_ENV === "development")
+      console.log("Database initialization complete!");
     isInitialized = true;
     return true;
   } catch (error) {

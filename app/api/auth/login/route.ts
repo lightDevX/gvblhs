@@ -1,83 +1,70 @@
 ﻿import { verifyPassword } from "@/lib/auth/password";
 import clientPromise from "@/lib/db/mongodb";
+import { VALID_ROLES } from "@/lib/permissions";
 import { signJWT } from "@/lib/tokens/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
-interface LoginRequestBody {
-  email?: unknown;
-  password?: unknown;
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as LoginRequestBody;
-    const email =
-      typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const body = await request.json();
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email and password are required" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
     const client = await clientPromise;
     if (!client) {
-      return NextResponse.json(
-        { error: "Database unavailable" },
-        { status: 503 },
-      );
+      return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
 
-    const databaseName = process.env.MONGO_DATABASE_NAME || "reunion2026";
-    const db = client.db(databaseName);
-    const usersCollection = db.collection("users");
+    const db = client.db(process.env.MONGO_DATABASE_NAME || "reunion2026");
+    const user = await db.collection("users").findOne({ email });
 
-    const user = await usersCollection.findOne({ email });
     if (!user || !user.password) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
-    if (user.role !== "admin") {
-      return NextResponse.json(
-        { error: "Admin access only" },
-        { status: 403 },
-      );
+    if (!VALID_ROLES.includes(user.role as (typeof VALID_ROLES)[number])) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const isPasswordValid = await verifyPassword(password, user.password);
-    if (!isPasswordValid) {
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 },
-      );
+    if (user.isActive === false) {
+      return NextResponse.json({ error: "Account is deactivated" }, { status: 403 });
     }
+
+    const valid = await verifyPassword(password, user.password);
+    if (!valid) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    }
+
+    // Update lastLoginAt
+    await db.collection("users").updateOne(
+      { _id: user._id },
+      { $set: { lastLoginAt: new Date() } },
+    );
 
     const token = await signJWT({
       userId: user._id.toString(),
       email: user.email,
-      role: "admin",
+      role: user.role,
     });
 
-    const response = NextResponse.json(
-      {
-        success: true,
-        user: {
-          id: user._id.toString(),
-          name: user.name,
-          email: user.email,
-          role: "admin",
-          createdAt: user.createdAt instanceof Date
-            ? user.createdAt.toISOString()
-            : new Date().toISOString(),
-        },
+    const response = NextResponse.json({
+      success: true,
+      user: {
+        id: user._id.toString(),
+        name: user.name || "",
+        email: user.email,
+        role: user.role,
+        permissions: Array.isArray(user.permissions) ? user.permissions : [],
+        fullAccess: user.fullAccess === true,
+        mustChangePassword: user.mustChangePassword === true,
+        isActive: user.isActive !== false,
+        createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : new Date().toISOString(),
       },
-      { status: 200 },
-    );
+    });
 
     response.cookies.set("auth-token", token, {
       httpOnly: true,
@@ -89,9 +76,6 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     console.error("Login error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

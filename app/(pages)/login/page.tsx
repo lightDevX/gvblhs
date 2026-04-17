@@ -20,7 +20,11 @@ const AdminLogin = () => {
 
   useEffect(() => {
     if (user && !authLoading) {
-      router.push("/admin");
+      if (user.mustChangePassword) {
+        router.push("/change-password");
+      } else {
+        router.push("/admin");
+      }
     }
   }, [user, authLoading, router]);
 
@@ -34,8 +38,13 @@ const AdminLogin = () => {
     const result = await login(email, password);
     setLoading(false);
     if (result.success) {
-      toast.success("Welcome back, Admin!");
-      router.push("/admin");
+      if (result.mustChangePassword) {
+        toast.info("Please set a new password to continue");
+        router.push("/change-password");
+      } else {
+        toast.success("Welcome back!");
+        router.push("/admin");
+      }
     } else {
       toast.error(result.error || "Sign in failed");
     }
@@ -91,7 +100,7 @@ const AdminLogin = () => {
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="????????"
                 required
                 className="bg-background/50"
                 value={password}
@@ -99,10 +108,7 @@ const AdminLogin = () => {
                 disabled={loading}
               />
             </div>
-            <Button
-              type="submit"
-              className="w-full glow-gold-sm"
-              disabled={loading}>
+            <Button type="submit" className="w-full glow-gold-sm" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>

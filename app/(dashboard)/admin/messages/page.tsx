@@ -23,13 +23,20 @@ export default function MessagesPage() {
   const [messagesLoading, setMessagesLoading] = useState(true);
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== "admin")) {
-      router.push("/dashboard");
+    if (
+      !loading &&
+      (!user || !["main_admin", "admin", "sub_admin"].includes(user.role))
+    ) {
+      router.push("/login");
     }
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (!loading && user && user.role === "admin") {
+    if (
+      !loading &&
+      user &&
+      ["main_admin", "admin", "sub_admin"].includes(user.role)
+    ) {
       loadMessages();
     }
   }, [user, loading]);
@@ -59,7 +66,7 @@ export default function MessagesPage() {
     );
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user || !["main_admin", "admin", "sub_admin"].includes(user.role)) {
     return null;
   }
 

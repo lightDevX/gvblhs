@@ -1,23 +1,13 @@
+import { requirePermission } from "@/lib/auth/require-admin";
 import clientPromise from "@/lib/db/mongodb";
-import { verifyJWT } from "@/lib/tokens/jwt";
 import { ObjectId } from "mongodb";
 import { NextRequest, NextResponse } from "next/server";
-
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return null;
-  const payload = await verifyJWT(token);
-  if (!payload || payload.role !== "admin") return null;
-  return payload;
-}
 
 /** GET /api/admin/registrations — list all registrations */
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdmin(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { error } = await requirePermission(request, "registrations.view");
+    if (error) return error;
 
     const client = await clientPromise;
     if (!client) {
@@ -68,10 +58,8 @@ export async function GET(request: NextRequest) {
 /** PATCH /api/admin/registrations — update registration status */
 export async function PATCH(request: NextRequest) {
   try {
-    const admin = await requireAdmin(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { error } = await requirePermission(request, "registrations.edit");
+    if (error) return error;
 
     const body = await request.json();
     const { id, status } = body;

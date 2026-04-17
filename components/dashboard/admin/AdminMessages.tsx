@@ -42,8 +42,12 @@ const AdminMessages = () => {
         return;
       }
 
-      // Check if user is admin
-      if (user.role !== "admin") {
+      // Check if user has messages permission
+      if (
+        user.role !== "main_admin" &&
+        user.role !== "admin" &&
+        user.role !== "sub_admin"
+      ) {
         setIsAdmin(false);
         setLoading(false);
         return;

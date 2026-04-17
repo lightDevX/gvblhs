@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { ROLE_LABELS, type AdminRole } from "@/lib/permissions";
 import {
   LayoutDashboard,
   LogOut,
@@ -13,24 +14,31 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-const menuItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Registrations", url: "/admin/registrations", icon: Users },
-  { title: "Messages", url: "/admin/messages", icon: MessageSquare },
-  { title: "Manage Roles", url: "/admin/roles", icon: ShieldCheck },
+const allMenuItems = [
+  { title: "Dashboard", url: "/admin", icon: LayoutDashboard, permission: "dashboard.view" },
+  { title: "Registrations", url: "/admin/registrations", icon: Users, permission: "registrations.view" },
+  { title: "Messages", url: "/admin/messages", icon: MessageSquare, permission: "messages.view" },
+  { title: "Admin Management", url: "/admin/manage", icon: ShieldCheck, permission: "admins.view" },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { user, logout, loading } = useAuth();
+  const { user, logout, loading, hasPermission } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Force password change guard
+  useEffect(() => {
+    if (!loading && user && user.mustChangePassword && pathname !== "/change-password") {
+      router.replace("/change-password");
+    }
+  }, [loading, user, pathname, router]);
 
   if (!loading && !user) {
     return <>{children}</>;
@@ -49,6 +57,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   if (!user) return null;
 
+  // If mustChangePassword, only show the password change page
+  if (user.mustChangePassword && pathname !== "/change-password") {
+    return null;
+  }
+
+  const menuItems = user.mustChangePassword
+    ? []
+    : allMenuItems.filter((item) => hasPermission(item.permission));
+
   const isActive = (url: string) => {
     if (url === "/admin") return pathname === "/admin";
     return pathname.startsWith(url);
@@ -66,6 +83,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       .join("")
       .toUpperCase()
       .slice(0, 2) || "?";
+
+  const roleLabel = ROLE_LABELS[user.role as AdminRole] || user.role;
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
@@ -90,29 +109,36 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <p className="text-xs text-muted-foreground truncate">{user.email}</p>
             </div>
           </div>
-          <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-gold/20 text-gold capitalize">
-            {user.role}
+          <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-gold/20 text-gold">
+            {roleLabel}
           </span>
+          {!user.mustChangePassword && (user.role === "main_admin" || user.fullAccess) && (
+            <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-green-500/15 text-green-400 ml-1">
+              Full Access
+            </span>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground px-3 py-2">ADMIN MENU</p>
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.url);
-            return (
-              <Link
-                key={item.url}
-                href={item.url}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${active ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"}`}>
-                <Icon className="w-4 h-4" />
-                <span className="text-sm">{item.title}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        {menuItems.length > 0 && (
+          <nav className="flex-1 p-4 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground px-3 py-2">ADMIN MENU</p>
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.url);
+              return (
+                <Link
+                  key={item.url}
+                  href={item.url}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${active ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:bg-muted/50"}`}>
+                  <Icon className="w-4 h-4" />
+                  <span className="text-sm">{item.title}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Sign Out */}
         <div className="p-4 border-t border-border">

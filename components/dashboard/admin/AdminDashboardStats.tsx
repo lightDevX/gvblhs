@@ -116,11 +116,23 @@ const AdminDashboardStats = () => {
   }
 
   const totalRegistrars = registrations.length;
-  const totalGuests = registrations.reduce((s, r) => s + (r.totalGuests || 0), 0);
-  const totalAttendees = registrations.reduce((s, r) => s + (r.totalAttendees || 1), 0);
-  const pendingCount = registrations.filter((r) => r.status === "pending").length;
-  const approvedCount = registrations.filter((r) => r.status === "approved").length;
-  const rejectedCount = registrations.filter((r) => r.status === "rejected").length;
+  const totalGuests = registrations.reduce(
+    (s, r) => s + (r.totalGuests || 0),
+    0,
+  );
+  const totalAttendees = registrations.reduce(
+    (s, r) => s + (r.totalAttendees || 1),
+    0,
+  );
+  const pendingCount = registrations.filter(
+    (r) => r.status === "pending",
+  ).length;
+  const approvedCount = registrations.filter(
+    (r) => r.status === "approved",
+  ).length;
+  const rejectedCount = registrations.filter(
+    (r) => r.status === "rejected",
+  ).length;
 
   // Batch distribution chart
   const batchData = BATCHES.map((b) => ({
@@ -165,7 +177,7 @@ const AdminDashboardStats = () => {
               <GraduationCap size={20} className="text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalRegistrars}</p>
+              <p className="text-2xl font-bold text-white">{totalRegistrars}</p>
               <p className="text-xs text-muted-foreground">Registrars</p>
             </div>
           </CardContent>
@@ -176,7 +188,7 @@ const AdminDashboardStats = () => {
               <UserCheck size={20} className="text-accent" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalGuests}</p>
+              <p className="text-2xl font-bold text-white">{totalGuests}</p>
               <p className="text-xs text-muted-foreground">Total Guests</p>
             </div>
           </CardContent>
@@ -187,7 +199,7 @@ const AdminDashboardStats = () => {
               <Users size={20} className="text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalAttendees}</p>
+              <p className="text-2xl font-bold text-white">{totalAttendees}</p>
               <p className="text-xs text-muted-foreground">Attendees</p>
             </div>
           </CardContent>
@@ -198,7 +210,7 @@ const AdminDashboardStats = () => {
               <Clock size={20} className="text-yellow-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{pendingCount}</p>
+              <p className="text-2xl font-bold text-white">{pendingCount}</p>
               <p className="text-xs text-muted-foreground">Pending</p>
             </div>
           </CardContent>
@@ -209,7 +221,7 @@ const AdminDashboardStats = () => {
               <CheckCircle size={20} className="text-green-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{approvedCount}</p>
+              <p className="text-2xl font-bold text-white">{approvedCount}</p>
               <p className="text-xs text-muted-foreground">Approved</p>
             </div>
           </CardContent>
@@ -220,7 +232,7 @@ const AdminDashboardStats = () => {
               <XCircle size={20} className="text-red-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{rejectedCount}</p>
+              <p className="text-2xl font-bold text-white">{rejectedCount}</p>
               <p className="text-xs text-muted-foreground">Rejected</p>
             </div>
           </CardContent>
@@ -235,7 +247,8 @@ const AdminDashboardStats = () => {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" /> Batch Distribution
+                  <BarChart3 className="h-5 w-5 text-primary" /> Batch
+                  Distribution
                 </CardTitle>
                 <Select value={chartBatch} onValueChange={setChartBatch}>
                   <SelectTrigger className="w-28 h-8 text-xs bg-background/50">
@@ -252,9 +265,20 @@ const AdminDashboardStats = () => {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={batchData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 30%, 18%)" />
-                    <XAxis dataKey="batch" stroke="hsl(220, 15%, 55%)" fontSize={12} />
-                    <YAxis stroke="hsl(220, 15%, 55%)" fontSize={12} allowDecimals={false} />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="hsl(222, 30%, 18%)"
+                    />
+                    <XAxis
+                      dataKey="batch"
+                      stroke="hsl(220, 15%, 55%)"
+                      fontSize={12}
+                    />
+                    <YAxis
+                      stroke="hsl(220, 15%, 55%)"
+                      fontSize={12}
+                      allowDecimals={false}
+                    />
                     <Tooltip
                       contentStyle={{
                         background: "hsl(222, 40%, 10%)",
@@ -262,12 +286,19 @@ const AdminDashboardStats = () => {
                         borderRadius: 8,
                         color: "hsl(40, 33%, 92%)",
                       }}
+                      labelStyle={{ color: "hsl(40, 33%, 92%)" }}
+                      itemStyle={{ color: "hsl(40, 33%, 92%)" }}
                     />
                     <Bar
-                      dataKey={chartBatch === "attendees" ? "attendees" : "registrars"}
+                      dataKey={
+                        chartBatch === "attendees" ? "attendees" : "registrars"
+                      }
                       radius={[6, 6, 0, 0]}>
                       {batchData.map((_, i) => (
-                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        <Cell
+                          key={i}
+                          fill={CHART_COLORS[i % CHART_COLORS.length]}
+                        />
                       ))}
                     </Bar>
                   </BarChart>
@@ -285,7 +316,7 @@ const AdminDashboardStats = () => {
                 <CardTitle className="text-lg">Payment Methods</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-48">
+                <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -293,16 +324,33 @@ const AdminDashboardStats = () => {
                         dataKey="value"
                         nameKey="name"
                         cx="50%"
-                        cy="50%"
-                        outerRadius={70}
-                        label={({ name, value }) => `${name}: ${value}`}
+                        cy="45%"
+                        outerRadius={65}
+                        innerRadius={30}
+                        paddingAngle={2}
                         fontSize={11}>
                         {paymentData.map((_, i) => (
-                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                          <Cell
+                            key={i}
+                            fill={CHART_COLORS[i % CHART_COLORS.length]}
+                          />
                         ))}
                       </Pie>
-                      <Tooltip />
-                      <Legend />
+                      <Tooltip
+                        contentStyle={{
+                          background: "hsl(222, 40%, 10%)",
+                          border: "1px solid hsl(222, 30%, 18%)",
+                          borderRadius: 8,
+                          color: "hsl(40, 33%, 92%)",
+                        }}
+                        formatter={(value, name) => [`${value}`, `${name}`]}
+                      />
+                      <Legend
+                        verticalAlign="bottom"
+                        iconType="circle"
+                        iconSize={8}
+                        wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -316,7 +364,7 @@ const AdminDashboardStats = () => {
                 <CardTitle className="text-lg">Registration Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-48">
+                <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -324,16 +372,31 @@ const AdminDashboardStats = () => {
                         dataKey="value"
                         nameKey="name"
                         cx="50%"
-                        cy="50%"
-                        outerRadius={70}
-                        label={({ name, value }) => `${name}: ${value}`}
+                        cy="45%"
+                        outerRadius={65}
+                        innerRadius={30}
+                        paddingAngle={2}
                         fontSize={11}>
                         {statusData.map((d, i) => (
                           <Cell key={i} fill={d.color} />
                         ))}
                       </Pie>
-                      <Tooltip />
-                      <Legend />
+                      <Tooltip
+                        contentStyle={{
+                          background: "hsl(45, 90%, 98%)", // Light cream/gold background
+                          border: "1px solid hsl(38, 90%, 55%)", // Gold border
+                          borderRadius: 8,
+                          color: "hsl(38, 80%, 35%)", // Dark gold text
+                          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                        }}
+                        formatter={(value, name) => [`${value}`, `${name}`]}
+                      />
+                      <Legend
+                        verticalAlign="bottom"
+                        iconType="circle"
+                        iconSize={8}
+                        wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

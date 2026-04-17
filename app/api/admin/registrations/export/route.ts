@@ -1,22 +1,12 @@
+import { requirePermission } from "@/lib/auth/require-admin";
 import clientPromise from "@/lib/db/mongodb";
-import { verifyJWT } from "@/lib/tokens/jwt";
 import { NextRequest, NextResponse } from "next/server";
-
-async function requireAdmin(request: NextRequest) {
-  const token = request.cookies.get("auth-token")?.value;
-  if (!token) return null;
-  const payload = await verifyJWT(token);
-  if (!payload || payload.role !== "admin") return null;
-  return payload;
-}
 
 /** GET /api/admin/registrations/export?batch=2005&format=pdf */
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdmin(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { error } = await requirePermission(request, "registrations.export");
+    if (error) return error;
 
     const { searchParams } = new URL(request.url);
     const batch = searchParams.get("batch");

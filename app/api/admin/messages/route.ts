@@ -1,5 +1,5 @@
+import { requirePermission } from "@/lib/auth/require-admin";
 import clientPromise from "@/lib/db/mongodb";
-import { verifyJWT } from "@/lib/tokens/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -8,19 +8,8 @@ import { NextRequest, NextResponse } from "next/server";
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.cookies.get("auth-token")?.value;
-
-    if (!token) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
-    const payload = await verifyJWT(token);
-    if (!payload || payload.role !== "admin") {
-      return NextResponse.json(
-        { error: "Admin access required" },
-        { status: 403 },
-      );
-    }
+    const { error } = await requirePermission(request, "messages.view");
+    if (error) return error;
 
     const client = await clientPromise;
     if (!client) {

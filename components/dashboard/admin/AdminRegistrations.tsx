@@ -24,13 +24,15 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   CheckCircle,
+  ChevronDown,
+  ChevronRight,
   Download,
   FileText,
   Search,
   ShieldAlert,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 interface Registration {
@@ -69,6 +71,7 @@ const AdminRegistrations = () => {
   const [batchFilter, setBatchFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -138,7 +141,11 @@ const AdminRegistrations = () => {
     doc.setFontSize(16);
     doc.text(title, 14, 15);
     doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total: ${data.length}`, 14, 22);
+    doc.text(
+      `Generated: ${new Date().toLocaleDateString()}  |  Total Entries: ${data.length}`,
+      14,
+      22,
+    );
 
     const headers = [
       "#",
@@ -146,7 +153,8 @@ const AdminRegistrations = () => {
       "Mobile",
       "Email",
       "Batch",
-      "Guests",
+      "Under 5",
+      "5+",
       "Attendees",
       "T-Shirt",
       "Payment",
@@ -162,7 +170,8 @@ const AdminRegistrations = () => {
       r.mobile,
       r.email || "-",
       r.batch,
-      String(r.totalGuests),
+      String(r.guestsUnder5),
+      String(r.guests5AndAbove),
       String(r.totalAttendees),
       r.tShirtSize || "-",
       r.paymentMethod || "-",
@@ -172,12 +181,44 @@ const AdminRegistrations = () => {
       r.createdAt ? r.createdAt.split("T")[0] : "-",
     ]);
 
+    const totalPersons = data.reduce((s, r) => s + r.totalAttendees, 0);
+    const totalUnder5 = data.reduce((s, r) => s + r.guestsUnder5, 0);
+    const total5Plus = data.reduce((s, r) => s + r.guests5AndAbove, 0);
+    const totalAmount = data.reduce((s, r) => s + r.amount, 0);
+
+    rows.push([
+      "",
+      "TOTAL",
+      "",
+      "",
+      "",
+      String(totalUnder5),
+      String(total5Plus),
+      String(totalPersons),
+      "",
+      "",
+      "",
+      String(totalAmount),
+      "",
+      "",
+    ]);
+
     autoTable(doc, {
       head: [headers],
       body: rows,
       startY: 28,
       styles: { fontSize: 7.5, cellPadding: 2 },
       headStyles: { fillColor: [38, 40, 74], textColor: [220, 194, 130] },
+      didParseCell: (hookData) => {
+        if (
+          hookData.section === "body" &&
+          hookData.row.index === rows.length - 1
+        ) {
+          hookData.cell.styles.fontStyle = "bold";
+          hookData.cell.styles.fillColor = [38, 40, 74];
+          hookData.cell.styles.textColor = [220, 194, 130];
+        }
+      },
     });
 
     return doc;
@@ -202,6 +243,12 @@ const AdminRegistrations = () => {
       return;
     }
 
+    let grandPersons = 0;
+    let grandUnder5 = 0;
+    let grand5Plus = 0;
+    let grandAmount = 0;
+    let grandEntries = 0;
+
     for (const batch of batchGroups) {
       const batchRegs = registrations.filter((r) => r.batch === batch);
       if (batchRegs.length === 0) continue;
@@ -217,7 +264,8 @@ const AdminRegistrations = () => {
         "Name",
         "Mobile",
         "Email",
-        "Guests",
+        "Under 5",
+        "5+",
         "Attendees",
         "T-Shirt",
         "Payment",
@@ -231,7 +279,8 @@ const AdminRegistrations = () => {
         r.name,
         r.mobile,
         r.email || "-",
-        String(r.totalGuests),
+        String(r.guestsUnder5),
+        String(r.guests5AndAbove),
         String(r.totalAttendees),
         r.tShirtSize || "-",
         r.paymentMethod || "-",
@@ -240,14 +289,72 @@ const AdminRegistrations = () => {
         r.status,
       ]);
 
+      const batchPersons = batchRegs.reduce((s, r) => s + r.totalAttendees, 0);
+      const batchUnder5 = batchRegs.reduce((s, r) => s + r.guestsUnder5, 0);
+      const batch5Plus = batchRegs.reduce((s, r) => s + r.guests5AndAbove, 0);
+      const batchAmount = batchRegs.reduce((s, r) => s + r.amount, 0);
+
+      grandPersons += batchPersons;
+      grandUnder5 += batchUnder5;
+      grand5Plus += batch5Plus;
+      grandAmount += batchAmount;
+      grandEntries += batchRegs.length;
+
+      rows.push([
+        "",
+        "TOTAL",
+        "",
+        "",
+        String(batchUnder5),
+        String(batch5Plus),
+        String(batchPersons),
+        "",
+        "",
+        "",
+        String(batchAmount),
+        "",
+      ]);
+
       autoTable(doc, {
         head: [headers],
         body: rows,
         startY: 22,
         styles: { fontSize: 7.5, cellPadding: 2 },
         headStyles: { fillColor: [38, 40, 74], textColor: [220, 194, 130] },
+        didParseCell: (hookData) => {
+          if (
+            hookData.section === "body" &&
+            hookData.row.index === rows.length - 1
+          ) {
+            hookData.cell.styles.fontStyle = "bold";
+            hookData.cell.styles.fillColor = [38, 40, 74];
+            hookData.cell.styles.textColor = [220, 194, 130];
+          }
+        },
       });
     }
+
+    // Grand total summary page
+    doc.addPage();
+    doc.setFontSize(16);
+    doc.text("Grand Total Summary", 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+
+    autoTable(doc, {
+      head: [["Metric", "Value"]],
+      body: [
+        ["Total Entries (Registrants)", String(grandEntries)],
+        ["Total Entry Persons (All Attendees)", String(grandPersons)],
+        ["Total Under 5 Guests", String(grandUnder5)],
+        ["Total 5+ Guests", String(grand5Plus)],
+        ["Total Amount", `${grandAmount} BDT`],
+      ],
+      startY: 28,
+      styles: { fontSize: 11, cellPadding: 4 },
+      headStyles: { fillColor: [38, 40, 74], textColor: [220, 194, 130] },
+      columnStyles: { 0: { fontStyle: "bold" } },
+    });
 
     doc.save("registrations-batchwise.pdf");
     toast.success("Batch-wise PDF downloaded");
@@ -357,12 +464,14 @@ const AdminRegistrations = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead className="w-10">#</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Mobile</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Batch</TableHead>
-                <TableHead className="text-center">Guests</TableHead>
+                <TableHead className="text-center">Under 5</TableHead>
+                <TableHead className="text-center">5+</TableHead>
                 <TableHead className="text-center">Attendees</TableHead>
                 <TableHead>T-Shirt</TableHead>
                 <TableHead>Payment</TableHead>
@@ -376,68 +485,203 @@ const AdminRegistrations = () => {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
+                  <TableCell
+                    colSpan={16}
+                    className="text-center py-8 text-muted-foreground">
                     No registrations found
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((r, i) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-mono text-xs">{i + 1}</TableCell>
-                    <TableCell className="font-medium">{r.name}</TableCell>
-                    <TableCell className="text-sm">{r.mobile}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.email || "-"}
-                    </TableCell>
-                    <TableCell>{r.batch}</TableCell>
-                    <TableCell className="text-center">{r.totalGuests}</TableCell>
-                    <TableCell className="text-center">{r.totalAttendees}</TableCell>
-                    <TableCell>{r.tShirtSize || "-"}</TableCell>
-                    <TableCell className="capitalize">{r.paymentMethod || "-"}</TableCell>
-                    <TableCell className="text-xs font-mono max-w-[120px] truncate">
-                      {r.transactionId || "-"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      &#x09F3;{r.amount}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={statusColor[r.status] || ""}>
-                        {r.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-1 justify-end">
-                        {r.status !== "approved" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-green-500 hover:text-green-400 hover:bg-green-500/10"
-                            onClick={() => updateStatus(r.id, "approved")}
-                            disabled={updatingId === r.id}
-                            title="Approve">
-                            <CheckCircle size={15} />
-                          </Button>
-                        )}
-                        {r.status !== "rejected" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                            onClick={() => updateStatus(r.id, "rejected")}
-                            disabled={updatingId === r.id}
-                            title="Reject">
-                            <XCircle size={15} />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                filtered.map((r, i) => {
+                  const isExpanded = expandedId === r.id;
+                  const hasGuests = r.totalGuests > 0;
+
+                  // Build guest list with age category
+                  const guestDetails: { name: string; ageCategory: string }[] =
+                    [];
+                  if (hasGuests) {
+                    const under5Count = r.guestsUnder5 || 0;
+                    const above5Count = r.guests5AndAbove || 0;
+                    const names = r.guestNames || [];
+
+                    for (let g = 0; g < under5Count; g++) {
+                      guestDetails.push({
+                        name: names[g] || `Guest ${g + 1}`,
+                        ageCategory: "Under 5",
+                      });
+                    }
+                    for (let g = 0; g < above5Count; g++) {
+                      guestDetails.push({
+                        name:
+                          names[under5Count + g] ||
+                          `Guest ${under5Count + g + 1}`,
+                        ageCategory: "5 and above",
+                      });
+                    }
+                  }
+
+                  return (
+                    <Fragment key={r.id}>
+                      <TableRow className={isExpanded ? "border-b-0" : ""}>
+                        <TableCell className="w-8 px-2">
+                          {hasGuests ? (
+                            <button
+                              onClick={() =>
+                                setExpandedId(isExpanded ? null : r.id)
+                              }
+                              className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition"
+                              title={
+                                isExpanded ? "Hide guests" : "Show guests"
+                              }>
+                              {isExpanded ? (
+                                <ChevronDown size={16} />
+                              ) : (
+                                <ChevronRight size={16} />
+                              )}
+                            </button>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {i + 1}
+                        </TableCell>
+                        <TableCell className="font-medium">{r.name}</TableCell>
+                        <TableCell className="text-sm">{r.mobile}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {r.email || "-"}
+                        </TableCell>
+                        <TableCell>{r.batch}</TableCell>
+                        <TableCell className="text-center">
+                          {r.guestsUnder5 > 0 ? (
+                            <button
+                              onClick={() =>
+                                setExpandedId(isExpanded ? null : r.id)
+                              }
+                              className="text-blue-400 hover:underline cursor-pointer">
+                              {r.guestsUnder5}
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {r.guests5AndAbove > 0 ? (
+                            <button
+                              onClick={() =>
+                                setExpandedId(isExpanded ? null : r.id)
+                              }
+                              className="text-orange-400 hover:underline cursor-pointer">
+                              {r.guests5AndAbove}
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {r.totalAttendees}
+                        </TableCell>
+                        <TableCell>{r.tShirtSize || "-"}</TableCell>
+                        <TableCell className="capitalize">
+                          {r.paymentMethod || "-"}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono max-w-[120px] truncate">
+                          {r.transactionId || "-"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          &#x09F3;{r.amount}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={statusColor[r.status] || ""}>
+                            {r.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {r.createdAt
+                            ? new Date(r.createdAt).toLocaleDateString()
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-1 justify-end">
+                            {r.status !== "approved" && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-green-500 hover:text-green-400 hover:bg-green-500/10"
+                                onClick={() => updateStatus(r.id, "approved")}
+                                disabled={updatingId === r.id}
+                                title="Approve">
+                                <CheckCircle size={15} />
+                              </Button>
+                            )}
+                            {r.status !== "rejected" && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10"
+                                onClick={() => updateStatus(r.id, "rejected")}
+                                disabled={updatingId === r.id}
+                                title="Reject">
+                                <XCircle size={15} />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Expanded guest details */}
+                      {isExpanded && hasGuests && (
+                        <TableRow className="bg-muted/20 hover:bg-muted/30">
+                          <TableCell colSpan={16} className="py-3 px-6">
+                            <div className="ml-6">
+                              <p className="text-xs font-semibold text-muted-foreground mb-2">
+                                Guests ({guestDetails.length})
+                              </p>
+                              <table className="w-auto text-sm border border-border/50 rounded-lg overflow-hidden">
+                                <thead>
+                                  <tr className="bg-muted/40">
+                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
+                                      #
+                                    </th>
+                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
+                                      Guest Name
+                                    </th>
+                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
+                                      Age Category
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {guestDetails.map((g, gi) => (
+                                    <tr
+                                      key={gi}
+                                      className="border-t border-border/30">
+                                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                                        {gi + 1}
+                                      </td>
+                                      <td className="px-3 py-1.5">{g.name}</td>
+                                      <td className="px-3 py-1.5">
+                                        <Badge
+                                          variant="outline"
+                                          className={
+                                            g.ageCategory === "Under 5"
+                                              ? "bg-blue-500/15 text-blue-400 border-blue-500/30 text-xs"
+                                              : "bg-orange-500/15 text-orange-400 border-orange-500/30 text-xs"
+                                          }>
+                                          {g.ageCategory}
+                                        </Badge>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>
