@@ -14,11 +14,15 @@ interface User {
   email: string;
   name: string;
   phone?: string;
-  age?: number | string;
-  guestCount?: number | null;
   tshirtSize?: string;
   role?: string;
-  category?: "student" | "guest";
+  category?: string;
+  batch?: string | null;
+  guestsUnder5?: number;
+  guests5AndAbove?: number;
+  guestNames?: string[];
+  totalGuests?: number;
+  totalAttendees?: number;
   createdAt: string;
 }
 
@@ -99,8 +103,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setUser(data.user);
-        router.push("/dashboard");
+        // Re-fetch full user from /api/auth/me for complete fields
+        await checkAuth();
         return { success: true };
       } else {
         return { success: false, error: data.error };

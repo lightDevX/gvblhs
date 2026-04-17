@@ -8,23 +8,31 @@ interface RegisterRequestBody {
   email?: unknown;
   password?: unknown;
   phone?: unknown;
-  age?: unknown;
-  guestCount?: unknown;
   tshirtSize?: unknown;
   religion?: unknown;
   customReligion?: unknown;
-  category?: unknown;
   batch?: unknown;
   transactionId?: unknown;
+  guestsUnder5?: unknown;
+  guests5AndAbove?: unknown;
+  guestNames?: unknown;
 }
 
 function asTrimmedString(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
+  if (typeof value !== "string") return null;
   const trimmed = value.trim();
-  return trimmed ? trimmed : null;
+  return trimmed || null;
+}
+
+function asNonNegativeInt(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+  if (typeof value === "string") {
+    const parsed = parseInt(value, 10);
+    if (!isNaN(parsed)) return Math.max(0, parsed);
+  }
+  return 0;
 }
 
 export async function POST(request: NextRequest) {
@@ -35,34 +43,27 @@ export async function POST(request: NextRequest) {
     const email = asTrimmedString(body.email)?.toLowerCase() ?? "";
     const password = typeof body.password === "string" ? body.password : "";
     const phone = asTrimmedString(body.phone);
-    const age = asTrimmedString(body.age);
     const tshirtSize = asTrimmedString(body.tshirtSize);
     const religion = asTrimmedString(body.religion);
     const customReligion = asTrimmedString(body.customReligion);
     const batch = asTrimmedString(body.batch);
     const transactionId = asTrimmedString(body.transactionId);
 
-    // Parse guestCount
-    let guestCount: number | null = null;
-    if (typeof body.guestCount === "number") {
-      guestCount = body.guestCount;
-    } else if (typeof body.guestCount === "string") {
-      const parsed = parseInt(body.guestCount);
-      if (!isNaN(parsed)) {
-        guestCount = parsed;
-      }
-    }
+    // Guest counts — always integers >= 0, capped at 50
+    const guestsUnder5 = Math.min(50, asNonNegativeInt(body.guestsUnder5));
+    const guests5AndAbove = Math.min(
+      50,
+      asNonNegativeInt(body.guests5AndAbove),
+    );
+    const totalGuests = guestsUnder5 + guests5AndAbove;
+    const totalAttendees = 1 + totalGuests;
 
-    const requestedCategory =
-      typeof body.category === "string" ? body.category : "guest";
-    if (requestedCategory !== "student" && requestedCategory !== "guest") {
-      return NextResponse.json(
-        { error: "Category must be student or guest" },
-        { status: 400 },
-      );
-    }
-
-    const category = requestedCategory;
+    // Guest names — array of trimmed strings, matching totalGuests count
+    const rawGuestNames = Array.isArray(body.guestNames) ? body.guestNames : [];
+    const guestNames: string[] = rawGuestNames
+      .slice(0, totalGuests)
+      .map((n: unknown) => (typeof n === "string" ? n.trim() : ""));
+    while (guestNames.length < totalGuests) guestNames.push("");
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -78,54 +79,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (category === "student" && !batch) {
-      return NextResponse.json(
-        { error: "Batch is required for student registration" },
-        { status: 400 },
-      );
-    }
-
-    if (category === "guest" && !age) {
-      return NextResponse.json(
-        { error: "Age group is required for guest registration" },
-        { status: 400 },
-      );
-    }
-
-    if (category === "guest" && !guestCount) {
-      return NextResponse.json(
-        { error: "Guest count is required for guest registration" },
-        { status: 400 },
-      );
-    }
-
-    if (
-      category === "guest" &&
-      guestCount &&
-      (guestCount < 1 || guestCount > 100)
-    ) {
-      return NextResponse.json(
-        { error: "Guest count must be between 1 and 100" },
-        { status: 400 },
-      );
-    }
-
-    // Validate age group if provided
-    const VALID_AGE_GROUPS = [
-      "18-25",
-      "26-35",
-      "36-45",
-      "46-55",
-      "56-65",
-      "66+",
-    ];
-    if (age && !VALID_AGE_GROUPS.includes(age)) {
-      return NextResponse.json(
-        {
-          error: `Invalid age group. Must be one of: ${VALID_AGE_GROUPS.join(", ")}`,
-        },
-        { status: 400 },
-      );
+    if (!batch) {
+      return NextResponse.json({ error: "Batch is required" }, { status: 400 });
     }
 
     if (religion === "Custom" && !customReligion) {
@@ -135,7 +90,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate tshirtSize if provided
     const VALID_TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
     if (tshirtSize && !VALID_TSHIRT_SIZES.includes(tshirtSize)) {
       return NextResponse.json(
@@ -152,7 +106,6 @@ export async function POST(request: NextRequest) {
       religion === "Custom" ? customReligion : null;
 
     const client = await clientPromise;
-
     if (!client) {
       return NextResponse.json(
         { error: "Database unavailable. Please try again later." },
@@ -179,15 +132,18 @@ export async function POST(request: NextRequest) {
       name,
       email,
       password: hashedPassword,
-      age: category === "guest" ? age : null,
-      guestCount: category === "guest" ? guestCount : null,
       phone,
       tshirtSize: tshirtSize || null,
       religion: normalizedReligion,
       customReligion: normalizedCustomReligion,
-      category,
-      batch: category === "student" ? batch : null,
+      category: "student",
+      batch,
       transactionId,
+      guestsUnder5,
+      guests5AndAbove,
+      guestNames,
+      totalGuests,
+      totalAttendees,
       authProvider: "email",
       role: "user",
       isActive: true,
@@ -198,30 +154,21 @@ export async function POST(request: NextRequest) {
     const userId = userResult.insertedId;
 
     try {
-      if (category === "student") {
-        await db.collection("students").insertOne({
-          userId,
-          batch,
-          religion: normalizedReligion,
-          customReligion: normalizedCustomReligion,
-          phone,
-          transactionId,
-          createdAt: now,
-          updatedAt: now,
-        });
-      } else {
-        await db.collection("guests").insertOne({
-          age,
-          guestCount,
-          userId,
-          religion: normalizedReligion,
-          customReligion: normalizedCustomReligion,
-          phone,
-          transactionId,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
+      await db.collection("students").insertOne({
+        userId,
+        batch,
+        religion: normalizedReligion,
+        customReligion: normalizedCustomReligion,
+        phone,
+        transactionId,
+        guestsUnder5,
+        guests5AndAbove,
+        guestNames,
+        totalGuests,
+        totalAttendees,
+        createdAt: now,
+        updatedAt: now,
+      });
     } catch (profileError) {
       await usersCollection.deleteOne({ _id: userId });
       throw profileError;
@@ -241,7 +188,12 @@ export async function POST(request: NextRequest) {
           name,
           email,
           role: "user",
-          category,
+          category: "student",
+          batch,
+          guestsUnder5,
+          guests5AndAbove,
+          totalGuests,
+          totalAttendees,
           createdAt: now.toISOString(),
         },
       },

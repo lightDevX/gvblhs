@@ -42,7 +42,22 @@ export async function GET(request: NextRequest) {
 
     const tickets = await ticketsCollection.find(query).toArray();
 
-    return NextResponse.json(tickets, { status: 200 });
+    const formattedTickets = tickets.map((t) => ({
+      id: t._id.toString(),
+      userId: t.userId?.toString(),
+      ticketId: t.ticketId || null,
+      paymentMethod: t.paymentMethod,
+      paymentStatus: t.paymentStatus,
+      transactionId: t.transactionId || null,
+      amount: t.amount,
+      ticketGenerated: t.ticketGenerated || false,
+      ticketGeneratedAt: t.ticketGeneratedAt || null,
+      approvedAt: t.approvedAt || null,
+      createdAt:
+        t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt,
+    }));
+
+    return NextResponse.json(formattedTickets, { status: 200 });
   } catch (error) {
     console.error("Error fetching tickets:", error);
     return NextResponse.json(

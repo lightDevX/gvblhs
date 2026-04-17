@@ -55,6 +55,11 @@ export async function GET(request: NextRequest) {
         customReligion: 1,
         category: 1,
         batch: 1,
+        guestsUnder5: 1,
+        guests5AndAbove: 1,
+        guestNames: 1,
+        totalGuests: 1,
+        totalAttendees: 1,
         createdAt: 1,
         updatedAt: 1,
       })
@@ -69,9 +74,14 @@ export async function GET(request: NextRequest) {
       tshirtSize: profile.tshirtSize || "",
       religion: profile.religion || "",
       customReligion: profile.customReligion || "",
-      category: profile.category || "guest",
+      category: profile.category || "student",
       batch: profile.batch || null,
-      isVerified: true, // Can be added to schema later
+      guestsUnder5: profile.guestsUnder5 || 0,
+      guests5AndAbove: profile.guests5AndAbove || 0,
+      guestNames: profile.guestNames || [],
+      totalGuests: profile.totalGuests || 0,
+      totalAttendees: profile.totalAttendees || 1,
+      isVerified: true,
       createdAt:
         profile.createdAt instanceof Date
           ? profile.createdAt.toISOString()

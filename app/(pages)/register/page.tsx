@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
+import { Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -20,7 +21,10 @@ import { toast } from "sonner";
 
 const RELIGIONS = ["Islam", "Hindu", "Christian", "Buddhist", "Custom"];
 const BATCHES = Array.from({ length: 11 }, (_, i) => String(2000 + i));
-const AGE_GROUPS = ["18-25", "26-35", "36-45", "46-55", "56-65", "66+"];
+
+const PRICE_PER_MEMBER = 800;
+const PRICE_PER_GUEST_UNDER5 = 0;
+const PRICE_PER_GUEST_5PLUS = 500;
 
 const Register = () => {
   const router = useRouter();
@@ -31,13 +35,13 @@ const Register = () => {
     email: "",
     phone: "",
     password: "",
-    age: "",
-    guestCount: "",
     transactionId: "",
     religion: "",
     customReligion: "",
-    category: "student" as "student" | "guest",
     batch: "",
+    guestsUnder5: 0,
+    guests5AndAbove: 0,
+    guestNames: [] as string[],
   });
 
   useEffect(() => {
@@ -48,6 +52,36 @@ const Register = () => {
 
   const update = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+  const updateCount = (
+    field: "guestsUnder5" | "guests5AndAbove",
+    delta: number,
+  ) => {
+    setFormData((prev) => {
+      const next = Math.max(0, Math.min(50, prev[field] + delta));
+      const updated = { ...prev, [field]: next };
+      const newTotal = updated.guestsUnder5 + updated.guests5AndAbove;
+      const names = [...updated.guestNames];
+      while (names.length < newTotal) names.push("");
+      if (names.length > newTotal) names.length = newTotal;
+      return { ...updated, guestNames: names };
+    });
+  };
+
+  const updateGuestName = (index: number, value: string) => {
+    setFormData((prev) => {
+      const names = [...prev.guestNames];
+      names[index] = value;
+      return { ...prev, guestNames: names };
+    });
+  };
+
+  const totalGuests = formData.guestsUnder5 + formData.guests5AndAbove;
+  const totalAttendees = 1 + totalGuests;
+  const totalPrice =
+    PRICE_PER_MEMBER +
+    formData.guestsUnder5 * PRICE_PER_GUEST_UNDER5 +
+    formData.guests5AndAbove * PRICE_PER_GUEST_5PLUS;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -73,35 +107,11 @@ const Register = () => {
       return;
     }
 
-    if (formData.category === "student" && !formData.batch) {
+    if (!formData.batch) {
       toast.error("Batch required", {
         description: "Please select your batch year.",
       });
       return;
-    }
-
-    if (formData.category === "guest" && !formData.age) {
-      toast.error("Age group required", {
-        description: "Please select your age group.",
-      });
-      return;
-    }
-
-    if (formData.category === "guest" && !formData.guestCount) {
-      toast.error("Number of guests required", {
-        description: "Please enter how many guests are in your group.",
-      });
-      return;
-    }
-
-    if (formData.category === "guest" && formData.guestCount) {
-      const count = parseInt(formData.guestCount);
-      if (isNaN(count) || count < 1 || count > 100) {
-        toast.error("Invalid guest count", {
-          description: "Guest count must be between 1 and 100.",
-        });
-        return;
-      }
     }
 
     if (formData.password.length < 6) {
@@ -114,7 +124,6 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // Call register API with all form data
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -123,15 +132,13 @@ const Register = () => {
           email: formData.email,
           password: formData.password,
           phone: formData.phone,
-          age: formData.age || undefined,
-          guestCount: formData.guestCount
-            ? parseInt(formData.guestCount)
-            : undefined,
           religion: formData.religion,
-          customReligion: formData.customReligion,
-          category: formData.category,
+          customReligion: formData.customReligion || undefined,
           batch: formData.batch,
-          transactionId: formData.transactionId,
+          transactionId: formData.transactionId || undefined,
+          guestsUnder5: formData.guestsUnder5,
+          guests5AndAbove: formData.guests5AndAbove,
+          guestNames: formData.guestNames,
         }),
       });
 
@@ -215,6 +222,26 @@ const Register = () => {
               />
             </div>
 
+            {/* Batch */}
+            <div className="space-y-1.5">
+              <Label>Batch Year *</Label>
+              <Select
+                value={formData.batch}
+                onValueChange={(v) => update("batch", v)}
+                disabled={loading}>
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue placeholder="Select Batch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BATCHES.map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {b}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Transaction ID */}
             <div className="space-y-1.5">
               <Label htmlFor="txnId">Transaction ID (Optional)</Label>
@@ -267,103 +294,143 @@ const Register = () => {
               </motion.div>
             )}
 
-            {/* Category */}
-            <div className="space-y-1.5">
-              <Label>Category *</Label>
-              <Select
-                value={formData.category}
-                onValueChange={(v) => update("category", v)}
-                disabled={loading}>
-                <SelectTrigger className="bg-background/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="student">Student (Batch-based)</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Guest Counts */}
+            <div className="space-y-3">
+              <Label className="text-base">Guests (Optional)</Label>
+              <p className="text-xs text-muted-foreground -mt-1">
+                How many guests are you bringing along?
+              </p>
+
+              {/* Guests Under 5 */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Under 5 years</p>
+                  <p className="text-xs text-muted-foreground">Free entry</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => updateCount("guestsUnder5", -1)}
+                    disabled={loading || formData.guestsUnder5 === 0}>
+                    <Minus size={14} />
+                  </Button>
+                  <span className="w-8 text-center font-semibold tabular-nums">
+                    {formData.guestsUnder5}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => updateCount("guestsUnder5", 1)}
+                    disabled={loading}>
+                    <Plus size={14} />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Guests 5 and Above */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">5 years &amp; above</p>
+                  <p className="text-xs text-muted-foreground">
+                    ৳{PRICE_PER_GUEST_5PLUS} per guest
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => updateCount("guests5AndAbove", -1)}
+                    disabled={loading || formData.guests5AndAbove === 0}>
+                    <Minus size={14} />
+                  </Button>
+                  <span className="w-8 text-center font-semibold tabular-nums">
+                    {formData.guests5AndAbove}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => updateCount("guests5AndAbove", 1)}
+                    disabled={loading}>
+                    <Plus size={14} />
+                  </Button>
+                </div>
+              </div>
             </div>
 
-            {/* Batch (only for students) */}
-            {formData.category === "student" && (
+            {/* Guest Names */}
+            {totalGuests > 0 && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
-                className="space-y-1.5">
-                <Label>Batch Year *</Label>
-                <Select
-                  value={formData.batch}
-                  onValueChange={(v) => update("batch", v)}
-                  disabled={loading}>
-                  <SelectTrigger className="bg-background/50">
-                    <SelectValue placeholder="Select Batch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BATCHES.map((b) => (
-                      <SelectItem key={b} value={b}>
-                        {b}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </motion.div>
-            )}
-
-            {/* Age (only for guests) */}
-            {formData.category === "guest" && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                className="space-y-1.5">
-                <Label>Age Group</Label>
-                <Select
-                  value={formData.age}
-                  onValueChange={(v) => update("age", v)}
-                  disabled={loading}>
-                  <SelectTrigger className="bg-background/50">
-                    <SelectValue placeholder="Select Age Group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AGE_GROUPS.map((age) => (
-                      <SelectItem key={age} value={age}>
-                        {age}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </motion.div>
-            )}
-
-            {/* Guest Count (only for guests) */}
-            {formData.category === "guest" && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                className="space-y-1.5">
-                <Label htmlFor="guestCount">
-                  Number of Guests in Your Group *
-                </Label>
-                <Input
-                  id="guestCount"
-                  type="number"
-                  min="1"
-                  max="100"
-                  placeholder="e.g., 5"
-                  required
-                  className="bg-background/50"
-                  value={formData.guestCount}
-                  onChange={(e) => update("guestCount", e.target.value)}
-                  disabled={loading}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {formData.guestCount && parseInt(formData.guestCount) < 5
-                    ? "Group size: Less than 5 guests"
-                    : formData.guestCount && parseInt(formData.guestCount) >= 5
-                      ? "Group size: 5 or more guests"
-                      : ""}
+                className="space-y-2">
+                <Label className="text-base">Guest Names</Label>
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Enter the name of each guest
                 </p>
+                {formData.guestNames.map((gName, i) => (
+                  <div key={i} className="space-y-1">
+                    <Label
+                      htmlFor={`guest-${i}`}
+                      className="text-xs text-muted-foreground">
+                      {i < formData.guestsUnder5
+                        ? `Guest ${i + 1} (Under 5)`
+                        : `Guest ${i + 1} (5+ years)`}
+                    </Label>
+                    <Input
+                      id={`guest-${i}`}
+                      placeholder={`Guest ${i + 1} name`}
+                      className="bg-background/50"
+                      value={gName}
+                      onChange={(e) => updateGuestName(i, e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                ))}
               </motion.div>
             )}
+
+            {/* Summary */}
+            <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Batch Member</span>
+                <span>1</span>
+              </div>
+              {formData.guestsUnder5 > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Guests Under 5</span>
+                  <span>{formData.guestsUnder5}</span>
+                </div>
+              )}
+              {formData.guests5AndAbove > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Guests 5+</span>
+                  <span>{formData.guests5AndAbove}</span>
+                </div>
+              )}
+              {totalGuests > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Guests</span>
+                  <span>{totalGuests}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold border-t border-border/50 pt-1 mt-1">
+                <span>Total Attendees</span>
+                <span>{totalAttendees}</span>
+              </div>
+              <div className="flex justify-between font-semibold text-primary">
+                <span>Estimated Cost</span>
+                <span>৳{totalPrice}</span>
+              </div>
+            </div>
 
             {/* Password */}
             <div className="space-y-1.5">
@@ -398,12 +465,13 @@ const Register = () => {
           <GoogleSignInButton
             additionalData={{
               phone: formData.phone,
-              age: formData.age || undefined,
               religion: formData.religion,
-              customReligion: formData.customReligion,
-              category: formData.category,
+              customReligion: formData.customReligion || undefined,
               batch: formData.batch,
-              transactionId: formData.transactionId,
+              transactionId: formData.transactionId || undefined,
+              guestsUnder5: formData.guestsUnder5,
+              guests5AndAbove: formData.guests5AndAbove,
+              guestNames: formData.guestNames,
             }}
           />
 

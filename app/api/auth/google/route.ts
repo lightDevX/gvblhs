@@ -8,12 +8,13 @@ interface GoogleAuthRequestBody {
   email?: unknown;
   name?: unknown;
   phone?: unknown;
-  age?: unknown;
   religion?: unknown;
   customReligion?: unknown;
-  category?: unknown;
   batch?: unknown;
   transactionId?: unknown;
+  guestsUnder5?: unknown;
+  guests5AndAbove?: unknown;
+  guestNames?: unknown;
 }
 
 interface FirebaseLookupProvider {
@@ -46,16 +47,18 @@ interface UserDocument {
   createdAt?: Date;
   updatedAt?: Date;
   phone?: string | null;
-  age?: string | null;
   religion?: string | null;
   customReligion?: string | null;
-  category?: "student" | "guest" | null;
+  category?: string | null;
   batch?: string | null;
   transactionId?: string | null;
   authProvider?: "email" | "google" | null;
+  guestsUnder5?: number;
+  guests5AndAbove?: number;
+  guestNames?: string[];
+  totalGuests?: number;
+  totalAttendees?: number;
 }
-
-type RegistrationCategory = "student" | "guest";
 
 function asTrimmedString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -64,6 +67,17 @@ function asTrimmedString(value: unknown): string | null {
 
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function asNonNegativeInt(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+  if (typeof value === "string") {
+    const parsed = parseInt(value, 10);
+    if (!isNaN(parsed)) return Math.max(0, parsed);
+  }
+  return 0;
 }
 
 async function verifyFirebaseIdToken(
@@ -112,67 +126,51 @@ async function verifyFirebaseIdToken(
   return user;
 }
 
-async function upsertCategoryRecord(params: {
+async function upsertStudentRecord(params: {
   db: Db;
   userId: ObjectId;
-  category: RegistrationCategory;
-  age: string | null;
-  batch: string | null;
+  batch: string;
   religion: string | null;
   customReligion: string | null;
   phone: string | null;
   transactionId: string | null;
+  guestsUnder5: number;
+  guests5AndAbove: number;
+  guestNames: string[];
+  totalGuests: number;
+  totalAttendees: number;
   now: Date;
 }): Promise<void> {
   const {
     db,
     userId,
-    category,
-    age,
     batch,
     religion,
     customReligion,
     phone,
     transactionId,
+    guestsUnder5,
+    guests5AndAbove,
+    guestNames,
+    totalGuests,
+    totalAttendees,
     now,
   } = params;
 
-  if (category === "student") {
-    if (!batch) {
-      throw new Error("Batch is required for student registration");
-    }
-
-    await db.collection("students").updateOne(
-      { userId },
-      {
-        $set: {
-          batch,
-          religion,
-          customReligion,
-          phone,
-          transactionId,
-          updatedAt: now,
-        },
-        $setOnInsert: {
-          userId,
-          createdAt: now,
-        },
-      },
-      { upsert: true },
-    );
-
-    return;
-  }
-
-  await db.collection("guests").updateOne(
+  await db.collection("students").updateOne(
     { userId },
     {
       $set: {
-        age,
+        batch,
         religion,
         customReligion,
         phone,
         transactionId,
+        guestsUnder5,
+        guests5AndAbove,
+        guestNames,
+        totalGuests,
+        totalAttendees,
         updatedAt: now,
       },
       $setOnInsert: {
@@ -192,39 +190,29 @@ export async function POST(request: NextRequest) {
     const requestedEmail = asTrimmedString(body.email)?.toLowerCase() ?? "";
     const requestedName = asTrimmedString(body.name);
     const phone = asTrimmedString(body.phone);
-    const age = asTrimmedString(body.age);
     const religion = asTrimmedString(body.religion);
     const customReligion = asTrimmedString(body.customReligion);
     const batch = asTrimmedString(body.batch);
     const transactionId = asTrimmedString(body.transactionId);
 
+    const guestsUnder5 = Math.min(50, asNonNegativeInt(body.guestsUnder5));
+    const guests5AndAbove = Math.min(
+      50,
+      asNonNegativeInt(body.guests5AndAbove),
+    );
+    const totalGuests = guestsUnder5 + guests5AndAbove;
+    const totalAttendees = 1 + totalGuests;
+
+    // Guest names
+    const rawGuestNames = Array.isArray(body.guestNames) ? body.guestNames : [];
+    const guestNames: string[] = rawGuestNames
+      .slice(0, totalGuests)
+      .map((n: unknown) => (typeof n === "string" ? n.trim() : ""));
+    while (guestNames.length < totalGuests) guestNames.push("");
+
     if (!idToken || !requestedEmail) {
       return NextResponse.json(
         { error: "Missing required fields" },
-        { status: 400 },
-      );
-    }
-
-    const rawCategory = asTrimmedString(body.category);
-    if (rawCategory && rawCategory !== "student" && rawCategory !== "guest") {
-      return NextResponse.json(
-        { error: "Category must be student or guest" },
-        { status: 400 },
-      );
-    }
-
-    const category = rawCategory as RegistrationCategory | null;
-
-    if (category === "student" && !batch) {
-      return NextResponse.json(
-        { error: "Batch is required for student registration" },
-        { status: 400 },
-      );
-    }
-
-    if (category === "guest" && !age) {
-      return NextResponse.json(
-        { error: "Age group is required for guest registration" },
         { status: 400 },
       );
     }
@@ -290,38 +278,42 @@ export async function POST(request: NextRequest) {
         phone,
         religion: normalizedReligion,
         customReligion: normalizedCustomReligion,
-        category,
-        batch: category === "student" ? batch : null,
+        category: "student",
+        batch: batch || null,
         transactionId,
+        guestsUnder5,
+        guests5AndAbove,
+        guestNames,
+        totalGuests,
+        totalAttendees,
         authProvider: "google",
         role: "user",
         isActive: true,
         createdAt: now,
-        age: category === "guest" ? age : null,
         updatedAt: now,
       });
 
-      if (category) {
-        await upsertCategoryRecord({
+      if (batch) {
+        await upsertStudentRecord({
           db,
           userId: userResult.insertedId,
-          category,
-          age: category === "guest" ? age : null,
           batch,
           religion: normalizedReligion,
           customReligion: normalizedCustomReligion,
           phone,
           transactionId,
+          guestsUnder5,
+          guests5AndAbove,
+          guestNames,
+          totalGuests,
+          totalAttendees,
           now,
         });
       }
 
       user = await usersCollection.findOne({ _id: userResult.insertedId });
     } else {
-      const existingCategory = user.category ?? null;
-      const updateData: Partial<UserDocument> & { updatedAt: Date } = {
-        updatedAt: now,
-      };
+      const updateData: Record<string, unknown> = { updatedAt: now };
 
       if (requestedName && !user.name) {
         updateData.name = requestedName;
@@ -339,15 +331,25 @@ export async function POST(request: NextRequest) {
         updateData.customReligion = normalizedCustomReligion;
       }
 
-      if (category && !existingCategory) {
-        updateData.category = category;
-        if (category === "student") {
-          updateData.batch = batch;
-        }
+      if (batch && !user.batch) {
+        updateData.batch = batch;
+      }
+
+      if (!user.category) {
+        updateData.category = "student";
       }
 
       if (transactionId && !user.transactionId) {
         updateData.transactionId = transactionId;
+      }
+
+      // Update guest counts if not previously set
+      if (user.guestsUnder5 == null) {
+        updateData.guestsUnder5 = guestsUnder5;
+        updateData.guests5AndAbove = guests5AndAbove;
+        updateData.guestNames = guestNames;
+        updateData.totalGuests = totalGuests;
+        updateData.totalAttendees = totalAttendees;
       }
 
       if (user.authProvider !== "google") {
@@ -362,17 +364,20 @@ export async function POST(request: NextRequest) {
         user = await usersCollection.findOne({ _id: user._id });
       }
 
-      if (category && !existingCategory && user) {
-        await upsertCategoryRecord({
+      if (batch && !user?.batch && user?._id) {
+        await upsertStudentRecord({
           db,
-          age: category === "guest" ? age : null,
           userId: user._id,
-          category,
           batch,
           religion: normalizedReligion,
           customReligion: normalizedCustomReligion,
           phone,
           transactionId,
+          guestsUnder5,
+          guests5AndAbove,
+          guestNames,
+          totalGuests,
+          totalAttendees,
           now,
         });
       }
@@ -404,6 +409,13 @@ export async function POST(request: NextRequest) {
           email: user.email,
           name: user.name,
           role: user.role || "user",
+          category: "student",
+          batch: user.batch || null,
+          guestsUnder5: user.guestsUnder5 || 0,
+          guests5AndAbove: user.guests5AndAbove || 0,
+          guestNames: user.guestNames || [],
+          totalGuests: user.totalGuests || 0,
+          totalAttendees: user.totalAttendees || 1,
           createdAt,
         },
       },

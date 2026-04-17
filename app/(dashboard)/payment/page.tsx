@@ -48,19 +48,15 @@ const PaymentPage = () => {
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Calculate ticket price based on guest count
+  // Calculate ticket price based on new guest model
   const getTicketPrice = () => {
-    if (!user) return 50;
+    if (!user) return 800;
 
-    // Check if user has guestCount field
-    const guestCount = (user as any).guestCount;
-    if (user.category === "guest" && guestCount) {
-      // Price: Less than 5 = 50 per person, 5 or above = 40 per person
-      return guestCount < 5 ? 50 * guestCount : 40 * guestCount;
-    }
+    const guestsUnder5 = (user as any).guestsUnder5 || 0;
+    const guests5AndAbove = (user as any).guests5AndAbove || 0;
 
-    // Default ticket price for students
-    return 50;
+    // Batch member: ৳800, guests under 5: free, guests 5+: ৳500 each
+    return 800 + guestsUnder5 * 0 + guests5AndAbove * 500;
   };
 
   const ticketPrice = getTicketPrice();
@@ -282,22 +278,18 @@ const PaymentPage = () => {
             <div className="bg-primary/5 rounded-lg p-3">
               <p className="text-sm font-medium mb-1">Payment Details:</p>
               <ul className="text-xs text-muted-foreground space-y-1">
-                {user.category === "guest" && user.guestCount ? (
-                  <>
-                    <li>
-                      • Number of Guests: {user.guestCount}{" "}
-                      {user.guestCount < 5 ? "(Under 5)" : "(5 or more)"}
-                    </li>
-                    <li>
-                      • Price per guest: ৳{user.guestCount < 5 ? "50" : "40"}
-                    </li>
-                    <li className="font-semibold text-foreground">
-                      • Total Amount: ৳{ticketPrice}
-                    </li>
-                  </>
-                ) : (
-                  <li>• Ticket Price: ৳{ticketPrice} (Fixed)</li>
+                <li>• Batch Member: ৳800</li>
+                {(user as any).guestsUnder5 > 0 && (
+                  <li>
+                    • Guests Under 5: {(user as any).guestsUnder5} × ৳0 (Free)
+                  </li>
                 )}
+                {(user as any).guests5AndAbove > 0 && (
+                  <li>• Guests 5+: {(user as any).guests5AndAbove} × ৳500</li>
+                )}
+                <li className="font-semibold text-foreground">
+                  • Total Amount: ৳{ticketPrice}
+                </li>
                 <li>
                   •{" "}
                   {selectedMethod === "manual"

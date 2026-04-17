@@ -11,12 +11,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 const TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
-const AGE_GROUPS = ["18-25", "26-35", "36-45", "46-55", "56-65", "66+"];
 
 interface ProfileFormProps {
   onSuccess?: () => void;
@@ -30,7 +28,6 @@ export const ProfileForm = ({ onSuccess }: ProfileFormProps) => {
     name: "",
     email: "",
     phone: "",
-    age: "",
     tshirtSize: "",
   });
 
@@ -47,7 +44,6 @@ export const ProfileForm = ({ onSuccess }: ProfileFormProps) => {
             name: data.name || "",
             email: data.email || "",
             phone: data.phone || "",
-            age: data.age ? String(data.age) : "",
             tshirtSize: data.tshirtSize || "",
           });
         } else {
@@ -105,9 +101,7 @@ export const ProfileForm = ({ onSuccess }: ProfileFormProps) => {
           name: formData.name,
           email: formData.email,
           phone: formData.phone || null,
-          age: user?.category === "guest" ? formData.age : null,
-          tshirtSize:
-            user?.category === "guest" ? null : formData.tshirtSize || null,
+          tshirtSize: formData.tshirtSize || null,
         }),
       });
 
@@ -180,58 +174,53 @@ export const ProfileForm = ({ onSuccess }: ProfileFormProps) => {
         </p>
       </div>
 
-      {/* Age Group (only for guests) */}
-      {user?.category === "guest" && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          className="space-y-2">
-          <Label htmlFor="ageGroup">Age Group</Label>
-          <Select
-            value={formData.age}
-            onValueChange={(value) => handleChange("age", value)}>
-            <SelectTrigger className="bg-background/50">
-              <SelectValue placeholder="Select Age Group" />
-            </SelectTrigger>
-            <SelectContent>
-              {AGE_GROUPS.map((ageGroup) => (
-                <SelectItem key={ageGroup} value={ageGroup}>
-                  {ageGroup}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">Optional</p>
-        </motion.div>
-      )}
-
       {/* T-Shirt Size */}
-      {user?.category !== "guest" && (
-        <div className="space-y-2">
-          <Label htmlFor="tshirtSize">T-Shirt Size</Label>
-          <Select
-            value={formData.tshirtSize}
-            onValueChange={(value) => handleChange("tshirtSize", value)}>
-            <SelectTrigger className="bg-background/50">
-              <SelectValue placeholder="Select a size..." />
-            </SelectTrigger>
-            <SelectContent>
-              {TSHIRT_SIZES.map((size) => (
-                <SelectItem key={size} value={size}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">Optional</p>
-        </div>
-      )}
+      <div className="space-y-2">
+        <Label htmlFor="tshirtSize">T-Shirt Size</Label>
+        <Select
+          value={formData.tshirtSize}
+          onValueChange={(value) => handleChange("tshirtSize", value)}>
+          <SelectTrigger className="bg-background/50">
+            <SelectValue placeholder="Select a size..." />
+          </SelectTrigger>
+          <SelectContent>
+            {TSHIRT_SIZES.map((size) => (
+              <SelectItem key={size} value={size}>
+                {size}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">Optional</p>
+      </div>
 
-      {user?.category === "guest" && (
-        <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 p-2 rounded">
-          T-shirt selection is not available for guests.
-        </p>
-      )}
+      {/* Guest Names (read-only, set at registration) */}
+      {user &&
+        (user as any).guestNames &&
+        (user as any).guestNames.length > 0 && (
+          <div className="space-y-2">
+            <Label>Guest Names</Label>
+            <div className="space-y-1.5">
+              {((user as any).guestNames as string[]).map(
+                (name: string, i: number) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground min-w-[70px]">
+                      Guest {i + 1}:
+                    </span>
+                    <Input
+                      value={name || "—"}
+                      disabled
+                      className="bg-background/30 text-muted-foreground"
+                    />
+                  </div>
+                ),
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Guest names are set during registration.
+            </p>
+          </div>
+        )}
 
       {/* Submit Button */}
       <Button

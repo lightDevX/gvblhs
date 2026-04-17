@@ -35,9 +35,13 @@ interface Profile {
   email: string;
   phone: string | null;
   religion?: string | null;
-  category: "student" | "guest";
+  category: string;
   batch: string | null;
   tshirtSize?: string | null;
+  guestsUnder5?: number;
+  guests5AndAbove?: number;
+  totalGuests?: number;
+  totalAttendees?: number;
 }
 
 const TicketPage = () => {
@@ -130,24 +134,15 @@ const TicketPage = () => {
         URL.revokeObjectURL(url);
       }
 
-      const catLabel =
-        profile?.category === "guest"
-          ? "Guest"
-          : `Student – Batch ${profile?.batch || "N/A"}`;
+      const catLabel = `Batch ${profile?.batch || "N/A"}`;
       const bgDark = "#0b1120";
       const bgCard = "#111827";
       const gold = "#c9952b";
       const textMain = "#ede8dd";
       const textMuted = "#7b839a";
-      const catBg =
-        profile?.category === "guest"
-          ? "rgba(220,80,100,0.2)"
-          : "rgba(201,149,43,0.2)";
-      const catColor = profile?.category === "guest" ? "#e08090" : "#dbb96a";
-      const catBorder =
-        profile?.category === "guest"
-          ? "rgba(220,80,100,0.3)"
-          : "rgba(201,149,43,0.3)";
+      const catBg = "rgba(201,149,43,0.2)";
+      const catColor = "#dbb96a";
+      const catBorder = "rgba(201,149,43,0.3)";
 
       // Build standalone HTML with only hex/rgba — no hsl(), no lab(), no Tailwind
       const html = `<!DOCTYPE html><html><head><style>
@@ -256,10 +251,7 @@ body{background:${bgDark};font-family:-apple-system,BlinkMacSystemFont,"Segoe UI
     }
   };
 
-  const categoryLabel =
-    profile?.category === "guest"
-      ? "Guest"
-      : `Student – Batch ${profile?.batch || "N/A"}`;
+  const categoryLabel = `Batch ${profile?.batch || "N/A"}`;
 
   if (authLoading || loading) {
     return (
@@ -313,15 +305,9 @@ body{background:${bgDark};font-family:-apple-system,BlinkMacSystemFont,"Segoe UI
               <span
                 className="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-3"
                 style={{
-                  background:
-                    profile?.category === "guest"
-                      ? "hsl(350 70% 60% / 0.2)"
-                      : "hsl(38 90% 55% / 0.2)",
-                  color:
-                    profile?.category === "guest"
-                      ? "hsl(350 70% 70%)"
-                      : "hsl(38 90% 65%)",
-                  border: `1px solid ${profile?.category === "guest" ? "hsl(350 70% 60% / 0.3)" : "hsl(38 90% 55% / 0.3)"}`,
+                  background: "hsl(38 90% 55% / 0.2)",
+                  color: "hsl(38 90% 65%)",
+                  border: `1px solid hsl(38 90% 55% / 0.3)`,
                 }}>
                 {categoryLabel}
               </span>

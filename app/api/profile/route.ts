@@ -7,12 +7,10 @@ interface ProfileUpdateBody {
   name?: unknown;
   email?: unknown;
   phone?: unknown;
-  age?: unknown;
   tshirtSize?: unknown;
 }
 
 const VALID_TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
-const VALID_AGE_GROUPS = ["18-25", "26-35", "36-45", "46-55", "56-65", "66+"];
 
 function asTrimmedString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -88,11 +86,15 @@ export async function GET(request: NextRequest) {
       name: user.name || "",
       email: user.email || "",
       phone: user.phone || "",
-      age: user.age || "",
       tshirtSize: user.tshirtSize || "",
       religion: user.religion || null,
-      category: user.category || "guest",
+      category: user.category || "student",
       batch: user.batch || null,
+      guestsUnder5: user.guestsUnder5 || 0,
+      guests5AndAbove: user.guests5AndAbove || 0,
+      guestNames: user.guestNames || [],
+      totalGuests: user.totalGuests || 0,
+      totalAttendees: user.totalAttendees || 1,
       role: user.role || "user",
       createdAt,
       updatedAt,
@@ -131,11 +133,10 @@ export async function PUT(request: NextRequest) {
     const name = asTrimmedString(body.name);
     const email = asTrimmedString(body.email);
     const phone = asTrimmedString(body.phone);
-    const age = asTrimmedString(body.age);
     const tshirtSize = asTrimmedString(body.tshirtSize);
 
     // Validate that at least one field is being updated
-    if (!name && !email && !phone && !age && !tshirtSize) {
+    if (!name && !email && !phone && !tshirtSize) {
       return NextResponse.json(
         { error: "No valid fields to update" },
         { status: 400 },
@@ -163,16 +164,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         {
           error: `Invalid t-shirt size. Must be one of: ${VALID_TSHIRT_SIZES.join(", ")}`,
-        },
-        { status: 400 },
-      );
-    }
-
-    // Validate age group if provided
-    if (age && !VALID_AGE_GROUPS.includes(age)) {
-      return NextResponse.json(
-        {
-          error: `Invalid age group. Must be one of: ${VALID_AGE_GROUPS.join(", ")}`,
         },
         { status: 400 },
       );
@@ -226,10 +217,6 @@ export async function PUT(request: NextRequest) {
       updateFields.tshirtSize = tshirtSize;
     }
 
-    if (age !== undefined && age !== null) {
-      updateFields.age = age;
-    }
-
     const updatedUser = await usersCollection.findOneAndUpdate(
       { _id: userId },
       { $set: updateFields },
@@ -255,9 +242,14 @@ export async function PUT(request: NextRequest) {
       name: updatedUser.name || "",
       email: updatedUser.email || "",
       phone: updatedUser.phone || "",
-      age: updatedUser.age || "",
       tshirtSize: updatedUser.tshirtSize || "",
-      category: updatedUser.category || "guest",
+      category: updatedUser.category || "student",
+      batch: updatedUser.batch || null,
+      guestsUnder5: updatedUser.guestsUnder5 || 0,
+      guests5AndAbove: updatedUser.guests5AndAbove || 0,
+      guestNames: updatedUser.guestNames || [],
+      totalGuests: updatedUser.totalGuests || 0,
+      totalAttendees: updatedUser.totalAttendees || 1,
       role: updatedUser.role || "user",
       createdAt,
       updatedAt,

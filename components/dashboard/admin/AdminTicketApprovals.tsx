@@ -35,6 +35,7 @@ interface Ticket {
 const AdminTicketApprovals = () => {
   const { user: currentUser, loading: authLoading } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [allTickets, setAllTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<"pending" | "paid" | "rejected" | "all">(
@@ -45,6 +46,13 @@ const AdminTicketApprovals = () => {
   const fetchTickets = useCallback(async () => {
     setLoading(true);
     try {
+      // Always fetch all tickets for accurate stats
+      const allRes = await fetch("/api/admin/tickets");
+      if (allRes.ok) {
+        const allData = await allRes.json();
+        setAllTickets(allData);
+      }
+
       const url =
         filter === "all"
           ? "/api/admin/tickets"
@@ -184,13 +192,15 @@ const AdminTicketApprovals = () => {
   };
 
   const getStats = () => {
-    const pending = tickets.filter((t) => t.paymentStatus === "pending").length;
-    const approved = tickets.filter((t) => t.paymentStatus === "paid").length;
-    const rejected = tickets.filter(
+    const pending = allTickets.filter(
+      (t) => t.paymentStatus === "pending",
+    ).length;
+    const paid = allTickets.filter((t) => t.paymentStatus === "paid").length;
+    const rejected = allTickets.filter(
       (t) => t.paymentStatus === "rejected",
     ).length;
-    const total = tickets.length;
-    return { pending, approved, rejected, total };
+    const total = allTickets.length;
+    return { pending, paid, rejected, total };
   };
 
   const stats = getStats();
@@ -217,7 +227,7 @@ const AdminTicketApprovals = () => {
           <p className="text-xs text-muted-foreground">Pending</p>
         </div>
         <div className="glass rounded-xl p-4 border-green-500/20">
-          <p className="text-2xl font-bold text-green-500">{stats.approved}</p>
+          <p className="text-2xl font-bold text-green-500">{stats.paid}</p>
           <p className="text-xs text-muted-foreground">Approved</p>
         </div>
         <div className="glass rounded-xl p-4 border-red-500/20">
@@ -285,7 +295,7 @@ const AdminTicketApprovals = () => {
                       <span className="font-mono">{ticket.transactionId}</span>
                     </span>
                   )}
-                  <span>Amount: ${ticket.amount}</span>
+                  <span>Amount: ৳{ticket.amount}</span>
                   <span>{new Date(ticket.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>

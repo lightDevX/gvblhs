@@ -11,12 +11,13 @@ import { toast } from "sonner";
 interface GoogleSignInButtonProps {
   additionalData?: {
     phone?: string;
-    age?: string;
     religion?: string;
     customReligion?: string;
-    category?: "student" | "guest";
     batch?: string;
     transactionId?: string;
+    guestsUnder5?: number;
+    guests5AndAbove?: number;
+    guestNames?: string[];
   };
   onSuccess?: () => void;
 }

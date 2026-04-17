@@ -51,6 +51,10 @@ interface Profile {
   category: string;
   batch: string | null;
   transactionId: string | null;
+  guestsUnder5: number;
+  guests5AndAbove: number;
+  totalGuests: number;
+  totalAttendees: number;
   isVerified: boolean;
   createdAt: string;
 }
@@ -61,7 +65,6 @@ const AdminDashboardStats = () => {
   const { user, loading: authLoading } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterCategory, setFilterCategory] = useState("all");
   const [filterBatch, setFilterBatch] = useState("all");
   const [search, setSearch] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -126,18 +129,24 @@ const AdminDashboardStats = () => {
     );
   }
 
-  const students = profiles.filter((p) => p.category === "student");
-  const guests = profiles.filter((p) => p.category === "guest");
+  const totalMembers = profiles.length;
+  const totalGuests = profiles.reduce(
+    (sum, p) => sum + (p.totalGuests || 0),
+    0,
+  );
+  const totalAttendees = profiles.reduce(
+    (sum, p) => sum + (p.totalAttendees || 1),
+    0,
+  );
 
   // Batch distribution
   const batchData = BATCHES.map((b) => ({
     batch: b,
-    count: students.filter((s) => s.batch === b).length,
+    count: profiles.filter((p) => p.batch === b).length,
   })).filter((d) => d.count > 0);
 
   // Filtered list
   const filtered = profiles.filter((p) => {
-    if (filterCategory !== "all" && p.category !== filterCategory) return false;
     if (filterBatch !== "all" && p.batch !== filterBatch) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -156,9 +165,11 @@ const AdminDashboardStats = () => {
       "Email",
       "Phone",
       "Religion",
-      "Category",
       "Batch",
-      "Transaction ID",
+      "Guests Under 5",
+      "Guests 5+",
+      "Total Guests",
+      "Total Attendees",
       "Registered",
       "Verified",
     ];
@@ -167,9 +178,11 @@ const AdminDashboardStats = () => {
       p.email,
       p.phone || "",
       p.religion || "",
-      p.category,
       p.batch || "",
-      p.transactionId || "",
+      String(p.guestsUnder5 || 0),
+      String(p.guests5AndAbove || 0),
+      String(p.totalGuests || 0),
+      String(p.totalAttendees || 1),
       new Date(p.createdAt).toLocaleDateString(),
       p.isVerified ? "Yes" : "No",
     ]);
@@ -208,24 +221,11 @@ const AdminDashboardStats = () => {
         <Card className="glass border-border/50">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
-              <Users size={22} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{profiles.length}</p>
-              <p className="text-xs text-muted-foreground">
-                Total Registrations
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass border-border/50">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
               <GraduationCap size={22} className="text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{students.length}</p>
-              <p className="text-xs text-muted-foreground">Students</p>
+              <p className="text-2xl font-bold">{totalMembers}</p>
+              <p className="text-xs text-muted-foreground">Batch Members</p>
             </div>
           </CardContent>
         </Card>
@@ -235,8 +235,19 @@ const AdminDashboardStats = () => {
               <UserCheck size={22} className="text-accent" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{guests.length}</p>
-              <p className="text-xs text-muted-foreground">Guests</p>
+              <p className="text-2xl font-bold">{totalGuests}</p>
+              <p className="text-xs text-muted-foreground">Total Guests</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="glass border-border/50">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Users size={22} className="text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{totalAttendees}</p>
+              <p className="text-xs text-muted-foreground">Total Attendees</p>
             </div>
           </CardContent>
         </Card>
@@ -312,16 +323,6 @@ const AdminDashboardStats = () => {
                 className="pl-9 bg-background/50"
               />
             </div>
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="w-[140px] bg-background/50">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="student">Students</SelectItem>
-                <SelectItem value="guest">Guests</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={filterBatch} onValueChange={setFilterBatch}>
               <SelectTrigger className="w-[130px] bg-background/50">
                 <SelectValue placeholder="Batch" />
@@ -345,10 +346,10 @@ const AdminDashboardStats = () => {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Category</TableHead>
                   <TableHead>Batch</TableHead>
+                  <TableHead>Guests</TableHead>
+                  <TableHead>Attendees</TableHead>
                   <TableHead>Religion</TableHead>
-                  <TableHead>Verified</TableHead>
                   <TableHead>Registered</TableHead>
                 </TableRow>
               </TableHeader>
@@ -369,29 +370,33 @@ const AdminDashboardStats = () => {
                       <TableCell className="text-xs">
                         {p.phone || "—"}
                       </TableCell>
+                      <TableCell>{p.batch || "—"}</TableCell>
+                      <TableCell>
+                        {p.totalGuests > 0 ? (
+                          <span className="text-xs">
+                            {p.totalGuests} (
+                            {p.guestsUnder5 > 0 ? `${p.guestsUnder5}<5` : ""}
+                            {p.guestsUnder5 > 0 && p.guests5AndAbove > 0
+                              ? ", "
+                              : ""}
+                            {p.guests5AndAbove > 0
+                              ? `${p.guests5AndAbove}≥5`
+                              : ""}
+                            )
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={
-                            p.category === "guest"
-                              ? "bg-accent/10 text-accent border-accent/30"
-                              : "bg-primary/10 text-primary border-primary/30"
-                          }>
-                          {p.category}
+                          className="bg-primary/10 text-primary border-primary/30">
+                          {p.totalAttendees || 1}
                         </Badge>
                       </TableCell>
-                      <TableCell>{p.batch || "—"}</TableCell>
                       <TableCell className="text-xs">
                         {p.religion || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={p.isVerified ? "default" : "secondary"}
-                          className={
-                            p.isVerified ? "bg-green-500/10 text-green-500" : ""
-                          }>
-                          {p.isVerified ? "Yes" : "No"}
-                        </Badge>
                       </TableCell>
                       <TableCell className="text-xs">
                         {new Date(p.createdAt).toLocaleDateString()}
