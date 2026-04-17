@@ -153,6 +153,15 @@
     background-clip: text;
   }
 
+  /* Background gradients */
+  .gradient-navy {
+    background: linear-gradient(135deg, #0f172a 0%, #1a2a4a 100%);
+  }
+
+  .gradient-gold {
+    background: linear-gradient(135deg, #d4b563 0%, #e4c89f 100%);
+  }
+
   /* Glow utilities */
   .glow-gold {
     box-shadow:

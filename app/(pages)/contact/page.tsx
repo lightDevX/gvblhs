@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Mail, MapPin, Phone, Send } from "lucide-react";
+import { Mail, MapPin, Phone, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -55,15 +55,7 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-16">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-8"
-          onClick={() => router.push("/")}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
-        </Button>
-
+      <div className="container mx-auto px-4 py-48">
         <div className="max-w-5xl mx-auto">
           <h1 className="font-heading text-4xl md:text-5xl font-bold text-gradient-gold mb-4">
             Get in Touch

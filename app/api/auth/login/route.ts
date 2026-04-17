@@ -3,11 +3,18 @@ import clientPromise from "@/lib/db/mongodb";
 import { signJWT } from "@/lib/tokens/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
+interface LoginRequestBody {
+  email?: unknown;
+  password?: unknown;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const body = (await request.json()) as LoginRequestBody;
+    const email =
+      typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const password = typeof body.password === "string" ? body.password : "";
 
-    // Validation
     if (!email || !password) {
       return NextResponse.json(
         { error: "Email and password are required" },
@@ -16,11 +23,18 @@ export async function POST(request: NextRequest) {
     }
 
     const client = await clientPromise;
-    const databaseName = process.env.NEXT_DATABASE_NAME || "reunion2026";
+
+    if (!client) {
+      return NextResponse.json(
+        { error: "Database unavailable. Please try again later." },
+        { status: 503 },
+      );
+    }
+
+    const databaseName = process.env.MONGO_DATABASE_NAME || "reunion2026";
     const db = client.db(databaseName);
     const usersCollection = db.collection("users");
 
-    // Find user
     const user = await usersCollection.findOne({ email });
     if (!user) {
       return NextResponse.json(
@@ -29,7 +43,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify password - handle OAuth users (null password)
     if (!user.password) {
       return NextResponse.json(
         { error: "This account uses OAuth. Please sign in with Google." },
@@ -45,14 +58,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate JWT token
     const token = await signJWT({
       userId: user._id.toString(),
       email: user.email,
       role: user.role || "user",
     });
 
-    // Set cookie
+    const createdAt =
+      user.createdAt instanceof Date
+        ? user.createdAt.toISOString()
+        : new Date().toISOString();
+
     const response = NextResponse.json(
       {
         success: true,
@@ -60,8 +76,12 @@ export async function POST(request: NextRequest) {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
+          phone: user.phone || "",
+          age: user.age || "",
+          tshirtSize: user.tshirtSize || "",
+          category: user.category || "guest",
           role: user.role || "user",
-          createdAt: user.createdAt?.toISOString(),
+          createdAt,
         },
       },
       { status: 200 },
@@ -71,7 +91,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60, // 7 days
+      maxAge: 7 * 24 * 60 * 60,
     });
 
     return response;

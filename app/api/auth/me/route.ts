@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const payload = await verifyJWT(token);
-    if (!payload) {
+    if (!payload || !ObjectId.isValid(payload.userId)) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 401 },
@@ -20,7 +20,15 @@ export async function GET(request: NextRequest) {
     }
 
     const client = await clientPromise;
-    const databaseName = process.env.NEXT_DATABASE_NAME || "reunion2026";
+
+    if (!client) {
+      return NextResponse.json(
+        { error: "Database unavailable. Please try again later." },
+        { status: 503 },
+      );
+    }
+
+    const databaseName = process.env.MONGO_DATABASE_NAME || "reunion2026";
     const db = client.db(databaseName);
     const usersCollection = db.collection("users");
 
@@ -32,12 +40,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    const createdAt =
+      user.createdAt instanceof Date
+        ? user.createdAt.toISOString()
+        : new Date().toISOString();
+
     return NextResponse.json({
       id: user._id.toString(),
       name: user.name,
       email: user.email,
+      phone: user.phone || "",
+      age: user.age || "",
+      guestCount: user.guestCount || null,
+      tshirtSize: user.tshirtSize || "",
+      category: user.category || "guest",
       role: user.role || "user",
-      createdAt: user.createdAt?.toISOString(),
+      createdAt,
     });
   } catch (error) {
     console.error("Get user error:", error);

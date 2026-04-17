@@ -10,7 +10,12 @@ export async function submitContactForm(formData: {
 }) {
   try {
     const client = await clientPromise;
-    const databaseName = process.env.NEXT_DATABASE_NAME || "reunion2026";
+
+    if (!client) {
+      throw new Error("Database unavailable. Please try again later.");
+    }
+
+    const databaseName = process.env.MONGO_DATABASE_NAME || "reunion2026";
     const db = client.db(databaseName);
     const collection = db.collection("contact_messages");
 

@@ -3,6 +3,20 @@ import { verifyJWT } from "@/lib/tokens/jwt";
 import { ObjectId } from "mongodb";
 import { NextRequest, NextResponse } from "next/server";
 
+interface UpdateUserRequestBody {
+  name?: unknown;
+  email?: unknown;
+}
+
+function asTrimmedString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 export async function PUT(request: NextRequest) {
   try {
     const token = request.cookies.get("auth-token")?.value;
@@ -12,24 +26,44 @@ export async function PUT(request: NextRequest) {
     }
 
     const payload = await verifyJWT(token);
-    if (!payload) {
+    if (!payload || !ObjectId.isValid(payload.userId)) {
       return NextResponse.json(
         { error: "Invalid or expired token" },
         { status: 401 },
       );
     }
 
-    const body = await request.json();
-    const { name, email } = body;
+    const body = (await request.json()) as UpdateUserRequestBody;
+    const name = asTrimmedString(body.name);
+    const email = asTrimmedString(body.email)?.toLowerCase() ?? null;
+
+    if (!name && !email) {
+      return NextResponse.json(
+        { error: "No valid fields to update" },
+        { status: 400 },
+      );
+    }
 
     const client = await clientPromise;
-    const databaseName = process.env.NEXT_DATABASE_NAME || "reunion2026";
+
+    if (!client) {
+      return NextResponse.json(
+        { error: "Database unavailable. Please try again later." },
+        { status: 503 },
+      );
+    }
+
+    const databaseName = process.env.MONGO_DATABASE_NAME || "reunion2026";
     const db = client.db(databaseName);
     const usersCollection = db.collection("users");
+    const userId = new ObjectId(payload.userId);
 
-    // Check if trying to update email to one that already exists
-    if (email && email !== payload.email) {
-      const existingUser = await usersCollection.findOne({ email });
+    if (email) {
+      const existingUser = await usersCollection.findOne({
+        email,
+        _id: { $ne: userId },
+      });
+
       if (existingUser) {
         return NextResponse.json(
           { error: "Email already in use" },
@@ -38,29 +72,39 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update user
-    const result = await usersCollection.findOneAndUpdate(
-      { _id: new ObjectId(payload.userId) },
-      {
-        $set: {
-          ...(name && { name }),
-          ...(email && { email }),
-          updatedAt: new Date(),
-        },
-      },
+    const updateFields: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (name) {
+      updateFields.name = name;
+    }
+
+    if (email) {
+      updateFields.email = email;
+    }
+
+    const updatedUser = await usersCollection.findOneAndUpdate(
+      { _id: userId },
+      { $set: updateFields },
       { returnDocument: "after" },
     );
 
-    if (!result || !result.value) {
+    if (!updatedUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    const createdAt =
+      updatedUser.createdAt instanceof Date
+        ? updatedUser.createdAt.toISOString()
+        : new Date().toISOString();
+
     return NextResponse.json({
-      id: result.value._id.toString(),
-      name: result.value.name,
-      email: result.value.email,
-      role: result.value.role || "user",
-      createdAt: result.value.createdAt?.toISOString(),
+      id: updatedUser._id.toString(),
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role || "user",
+      createdAt,
     });
   } catch (error) {
     console.error("Update user error:", error);

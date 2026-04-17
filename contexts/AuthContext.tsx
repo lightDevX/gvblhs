@@ -13,7 +13,12 @@ interface User {
   id: string;
   email: string;
   name: string;
+  phone?: string;
+  age?: number | string;
+  guestCount?: number | null;
+  tshirtSize?: string;
   role?: string;
+  category?: "student" | "guest";
   createdAt: string;
 }
 
@@ -58,19 +63,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const checkAuth = async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch("/api/auth/me", {
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      try {
+        const response = await fetch("/api/auth/me", {
+          signal: controller.signal,
+        });
 
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      } finally {
+        clearTimeout(timeoutId);
       }
     } catch (error) {
-      console.error("Auth check failed:", error);
+      if (error instanceof Error && error.name === "AbortError") {
+        console.error("Auth check failed: Request timeout");
+      } else {
+        console.error("Auth check failed:", error);
+      }
     } finally {
       setLoading(false);
     }
@@ -123,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
-    router.push("/login");
+    router.push("/");
   };
 
   const updateUser = async (userData: Partial<User>) => {

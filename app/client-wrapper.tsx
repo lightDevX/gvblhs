@@ -8,7 +8,13 @@ export function ClientWrapper({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       {children}
-      <Toaster position="top-right" />
+      <Toaster
+        position="top-right"
+        theme="dark"
+        richColors
+        expand
+        closeButton
+      />
     </AuthProvider>
   );
 }

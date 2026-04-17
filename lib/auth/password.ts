@@ -1,7 +1,4 @@
 import crypto from "crypto";
-import { promisify } from "util";
-
-const scrypt = promisify(crypto.scrypt);
 
 const HASH_ITERATIONS = 100000;
 const HASH_ALGORITHM = "sha256";

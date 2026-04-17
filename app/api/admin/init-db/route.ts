@@ -23,7 +23,7 @@ export async function GET() {
         {
           success: true,
           message: "Database initialized successfully",
-          collections: ["users", "admin"],
+          collections: ["users", "admin", "students", "guests"],
         },
         { status: 200 },
       );
@@ -33,10 +33,12 @@ export async function GET() {
         { status: 500 },
       );
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
     console.error("Init error:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: message },
       { status: 500 },
     );
   }

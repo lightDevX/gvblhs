@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 const RELIGIONS = ["Islam", "Hindu", "Christian", "Buddhist", "Custom"];
 const BATCHES = Array.from({ length: 11 }, (_, i) => String(2000 + i));
+const AGE_GROUPS = ["18-25", "26-35", "36-45", "46-55", "56-65", "66+"];
 
 const Register = () => {
   const router = useRouter();
@@ -30,6 +31,8 @@ const Register = () => {
     email: "",
     phone: "",
     password: "",
+    age: "",
+    guestCount: "",
     transactionId: "",
     religion: "",
     customReligion: "",
@@ -77,6 +80,30 @@ const Register = () => {
       return;
     }
 
+    if (formData.category === "guest" && !formData.age) {
+      toast.error("Age group required", {
+        description: "Please select your age group.",
+      });
+      return;
+    }
+
+    if (formData.category === "guest" && !formData.guestCount) {
+      toast.error("Number of guests required", {
+        description: "Please enter how many guests are in your group.",
+      });
+      return;
+    }
+
+    if (formData.category === "guest" && formData.guestCount) {
+      const count = parseInt(formData.guestCount);
+      if (isNaN(count) || count < 1 || count > 100) {
+        toast.error("Invalid guest count", {
+          description: "Guest count must be between 1 and 100.",
+        });
+        return;
+      }
+    }
+
     if (formData.password.length < 6) {
       toast.error("Password too short", {
         description: "Password must be at least 6 characters.",
@@ -96,6 +123,10 @@ const Register = () => {
           email: formData.email,
           password: formData.password,
           phone: formData.phone,
+          age: formData.age || undefined,
+          guestCount: formData.guestCount
+            ? parseInt(formData.guestCount)
+            : undefined,
           religion: formData.religion,
           customReligion: formData.customReligion,
           category: formData.category,
@@ -119,6 +150,7 @@ const Register = () => {
       }
     } catch (error) {
       setLoading(false);
+      console.error("Registration error:", error);
       toast.error("Registration failed", {
         description: "An error occurred. Please try again later.",
       });
@@ -131,7 +163,7 @@ const Register = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center px-4 py-32">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -277,6 +309,62 @@ const Register = () => {
               </motion.div>
             )}
 
+            {/* Age (only for guests) */}
+            {formData.category === "guest" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="space-y-1.5">
+                <Label>Age Group</Label>
+                <Select
+                  value={formData.age}
+                  onValueChange={(v) => update("age", v)}
+                  disabled={loading}>
+                  <SelectTrigger className="bg-background/50">
+                    <SelectValue placeholder="Select Age Group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGE_GROUPS.map((age) => (
+                      <SelectItem key={age} value={age}>
+                        {age}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </motion.div>
+            )}
+
+            {/* Guest Count (only for guests) */}
+            {formData.category === "guest" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="space-y-1.5">
+                <Label htmlFor="guestCount">
+                  Number of Guests in Your Group *
+                </Label>
+                <Input
+                  id="guestCount"
+                  type="number"
+                  min="1"
+                  max="100"
+                  placeholder="e.g., 5"
+                  required
+                  className="bg-background/50"
+                  value={formData.guestCount}
+                  onChange={(e) => update("guestCount", e.target.value)}
+                  disabled={loading}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {formData.guestCount && parseInt(formData.guestCount) < 5
+                    ? "Group size: Less than 5 guests"
+                    : formData.guestCount && parseInt(formData.guestCount) >= 5
+                      ? "Group size: 5 or more guests"
+                      : ""}
+                </p>
+              </motion.div>
+            )}
+
             {/* Password */}
             <div className="space-y-1.5">
               <Label htmlFor="password">Password *</Label>
@@ -310,6 +398,7 @@ const Register = () => {
           <GoogleSignInButton
             additionalData={{
               phone: formData.phone,
+              age: formData.age || undefined,
               religion: formData.religion,
               customReligion: formData.customReligion,
               category: formData.category,

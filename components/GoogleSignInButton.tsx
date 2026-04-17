@@ -11,6 +11,7 @@ import { toast } from "sonner";
 interface GoogleSignInButtonProps {
   additionalData?: {
     phone?: string;
+    age?: string;
     religion?: string;
     customReligion?: string;
     category?: "student" | "guest";
