@@ -126,17 +126,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
 
-    // Check if user already has a pending ticket
+    // Check if user already has a pending or paid ticket
     const existingTicket = await ticketsCollection.findOne({
       userId: new ObjectId(payload.userId),
-      paymentStatus: "pending",
+      paymentStatus: { $in: ["pending", "paid"] },
     });
 
     if (existingTicket) {
-      return NextResponse.json(
-        { error: "You already have a pending payment submission" },
-        { status: 400 },
-      );
+      const msg =
+        existingTicket.paymentStatus === "paid"
+          ? "Your payment is already approved"
+          : "You already have a pending payment submission";
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
 
     // Create ticket submission

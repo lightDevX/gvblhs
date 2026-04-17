@@ -13,7 +13,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 const paymentMethods = [
@@ -47,13 +47,45 @@ const PaymentPage = () => {
   const [transactionId, setTransactionId] = useState("");
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [existingStatus, setExistingStatus] = useState<string | null>(null);
+  const [checkingTicket, setCheckingTicket] = useState(true);
+
+  // Check if user already has a ticket
+  useEffect(() => {
+    const checkExisting = async () => {
+      if (!user) {
+        setCheckingTicket(false);
+        return;
+      }
+      try {
+        const res = await fetch("/api/tickets");
+        if (res.ok) {
+          const tickets = await res.json();
+          const paid = tickets.find((t: any) => t.paymentStatus === "paid");
+          const pending = tickets.find(
+            (t: any) => t.paymentStatus === "pending",
+          );
+          if (paid) {
+            setExistingStatus("paid");
+          } else if (pending) {
+            setExistingStatus("pending");
+          }
+        }
+      } catch (e) {
+        console.error("Error checking existing ticket:", e);
+      } finally {
+        setCheckingTicket(false);
+      }
+    };
+    checkExisting();
+  }, [user]);
 
   // Calculate ticket price based on new guest model
   const getTicketPrice = () => {
     if (!user) return 800;
 
-    const guestsUnder5 = (user as any).guestsUnder5 || 0;
-    const guests5AndAbove = (user as any).guests5AndAbove || 0;
+    const guestsUnder5 = user.guestsUnder5 || 0;
+    const guests5AndAbove = user.guests5AndAbove || 0;
 
     // Batch member: ৳800, guests under 5: free, guests 5+: ৳500 each
     return 800 + guestsUnder5 * 0 + guests5AndAbove * 500;
@@ -111,7 +143,7 @@ const PaymentPage = () => {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || checkingTicket) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -131,6 +163,64 @@ const PaymentPage = () => {
         </p>
         <Button onClick={() => router.push("/login")}>Login Now</Button>
       </div>
+    );
+  }
+
+  if (existingStatus === "paid") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-lg mx-auto">
+        <div className="glass-gold rounded-2xl p-8 text-center space-y-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 mb-2">
+            <CheckCircle size={32} className="text-primary" />
+          </div>
+          <h2 className="font-heading text-2xl font-bold">Payment Approved</h2>
+          <p className="text-muted-foreground">
+            Your payment has already been approved. Go to My Ticket to view or
+            generate your ticket.
+          </p>
+          <Button
+            className="glow-gold-sm w-full"
+            onClick={() => router.push("/ticket")}>
+            Go to My Ticket <ArrowRight size={16} className="ml-2" />
+          </Button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (existingStatus === "pending") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-lg mx-auto">
+        <div className="glass-gold rounded-2xl p-8 text-center space-y-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-500/20 mb-2">
+            <AlertCircle size={32} className="text-yellow-500" />
+          </div>
+          <h2 className="font-heading text-2xl font-bold">Payment Pending</h2>
+          <p className="text-muted-foreground">
+            You already have a pending payment submission. Please wait for admin
+            approval.
+          </p>
+          <div className="space-y-2">
+            <Button
+              className="glow-gold-sm w-full"
+              onClick={() => router.push("/ticket")}>
+              Check Status <ArrowRight size={16} className="ml-2" />
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => router.push("/dashboard")}>
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      </motion.div>
     );
   }
 
@@ -279,13 +369,11 @@ const PaymentPage = () => {
               <p className="text-sm font-medium mb-1">Payment Details:</p>
               <ul className="text-xs text-muted-foreground space-y-1">
                 <li>• Batch Member: ৳800</li>
-                {(user as any).guestsUnder5 > 0 && (
-                  <li>
-                    • Guests Under 5: {(user as any).guestsUnder5} × ৳0 (Free)
-                  </li>
+                {(user.guestsUnder5 || 0) > 0 && (
+                  <li>• Guests Under 5: {user.guestsUnder5} × ৳0 (Free)</li>
                 )}
-                {(user as any).guests5AndAbove > 0 && (
-                  <li>• Guests 5+: {(user as any).guests5AndAbove} × ৳500</li>
+                {(user.guests5AndAbove || 0) > 0 && (
+                  <li>• Guests 5+: {user.guests5AndAbove} × ৳500</li>
                 )}
                 <li className="font-semibold text-foreground">
                   • Total Amount: ৳{ticketPrice}

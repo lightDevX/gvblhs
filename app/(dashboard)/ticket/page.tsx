@@ -6,9 +6,11 @@ import { motion } from "framer-motion";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import {
+  AlertCircle,
   ArrowLeft,
   BookOpen,
   Calendar,
+  CheckCircle,
   Download,
   Mail,
   MapPin,
@@ -23,10 +25,11 @@ import { toast } from "sonner";
 
 interface Ticket {
   id: string;
-  ticketId: string;
+  ticketId: string | null;
   paymentStatus: string;
   paymentMethod: string;
   amount: number;
+  ticketGenerated: boolean;
   createdAt: string;
 }
 
@@ -40,6 +43,7 @@ interface Profile {
   tshirtSize?: string | null;
   guestsUnder5?: number;
   guests5AndAbove?: number;
+  guestNames?: string[];
   totalGuests?: number;
   totalAttendees?: number;
 }
@@ -50,6 +54,7 @@ const TicketPage = () => {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,21 +70,30 @@ const TicketPage = () => {
 
   const fetchTicketData = async () => {
     try {
-      // Fetch approved ticket
-      const ticketRes = await fetch("/api/tickets?status=paid");
+      // Fetch all tickets for this user
+      const ticketRes = await fetch("/api/tickets");
       const ticketsData = await ticketRes.json();
 
-      const approvedTicket = ticketsData.find(
+      // Find paid ticket first, then pending, then rejected
+      const paidTicket = ticketsData.find(
         (t: any) => t.paymentStatus === "paid",
       );
+      const pendingTicket = ticketsData.find(
+        (t: any) => t.paymentStatus === "pending",
+      );
+      const rejectedTicket = ticketsData.find(
+        (t: any) => t.paymentStatus === "rejected",
+      );
 
-      if (!approvedTicket) {
-        toast.error("No approved ticket found");
-        router.push("/dashboard");
+      const foundTicket = paidTicket || pendingTicket || rejectedTicket;
+
+      if (!foundTicket) {
+        toast.error("No ticket found");
+        router.push("/payment");
         return;
       }
 
-      setTicket(approvedTicket);
+      setTicket(foundTicket);
 
       // Fetch user profile
       const profileRes = await fetch("/api/profile");
@@ -93,6 +107,25 @@ const TicketPage = () => {
       router.push("/dashboard");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateTicket = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/tickets/generate", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Ticket generated!");
+        await fetchTicketData();
+      } else {
+        toast.error(data.error || "Failed to generate ticket");
+      }
+    } catch (error) {
+      console.error("Generate ticket error:", error);
+      toast.error("Failed to generate ticket");
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -262,6 +295,137 @@ body{background:${bgDark};font-family:-apple-system,BlinkMacSystemFont,"Segoe UI
   }
 
   if (!user || !ticket) {
+    return null;
+  }
+
+  // Pending approval state
+  if (ticket.paymentStatus === "pending") {
+    return (
+      <div className="min-h-screen py-12 px-4 bg-background">
+        <div className="container mx-auto max-w-lg">
+          <div className="flex items-center justify-between mb-8">
+            <Link
+              href="/"
+              className="font-heading text-2xl font-bold text-gradient-gold">
+              Reunion 2026
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
+              <ArrowLeft size={14} /> Dashboard
+            </Link>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-gold rounded-2xl p-8 text-center space-y-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-500/20 mb-2">
+              <AlertCircle size={32} className="text-yellow-500" />
+            </div>
+            <h2 className="font-heading text-2xl font-bold">Payment Pending</h2>
+            <p className="text-muted-foreground">
+              Your payment is being reviewed by an admin. You&apos;ll be able to
+              generate your ticket once approved.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Amount: ৳{ticket.amount} via {ticket.paymentMethod.toUpperCase()}
+            </p>
+            <Button variant="outline" onClick={() => router.push("/dashboard")}>
+              Back to Dashboard
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // Rejected state
+  if (ticket.paymentStatus === "rejected") {
+    return (
+      <div className="min-h-screen py-12 px-4 bg-background">
+        <div className="container mx-auto max-w-lg">
+          <div className="flex items-center justify-between mb-8">
+            <Link
+              href="/"
+              className="font-heading text-2xl font-bold text-gradient-gold">
+              Reunion 2026
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
+              <ArrowLeft size={14} /> Dashboard
+            </Link>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass rounded-2xl p-8 text-center space-y-4 border border-red-500/20">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/20 mb-2">
+              <AlertCircle size={32} className="text-red-500" />
+            </div>
+            <h2 className="font-heading text-2xl font-bold">
+              Payment Rejected
+            </h2>
+            <p className="text-muted-foreground">
+              Your payment submission was rejected. Please try submitting again
+              with correct details.
+            </p>
+            <Button
+              className="glow-gold-sm"
+              onClick={() => router.push("/payment")}>
+              Try Again
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // Paid but ticket not generated yet
+  if (ticket.paymentStatus === "paid" && !ticket.ticketGenerated) {
+    return (
+      <div className="min-h-screen py-12 px-4 bg-background">
+        <div className="container mx-auto max-w-lg">
+          <div className="flex items-center justify-between mb-8">
+            <Link
+              href="/"
+              className="font-heading text-2xl font-bold text-gradient-gold">
+              Reunion 2026
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1">
+              <ArrowLeft size={14} /> Dashboard
+            </Link>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-gold rounded-2xl p-8 text-center space-y-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 mb-2">
+              <CheckCircle size={32} className="text-primary" />
+            </div>
+            <h2 className="font-heading text-2xl font-bold">
+              Payment Approved!
+            </h2>
+            <p className="text-muted-foreground">
+              Your payment has been approved. Click the button below to generate
+              your ticket.
+            </p>
+            <Button
+              className="glow-gold-sm w-full"
+              onClick={handleGenerateTicket}
+              disabled={generating}>
+              {generating ? "Generating..." : "Generate My Ticket"}
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // Ticket generated but ticketId is somehow null (safety net)
+  if (!ticket.ticketId) {
     return null;
   }
 
