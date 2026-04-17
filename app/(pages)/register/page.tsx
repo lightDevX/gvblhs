@@ -42,7 +42,6 @@ const Register = () => {
     customReligion: "",
     tShirtSize: "",
     paymentMethod: "",
-    transactionId: "",
     guestsUnder5: 0,
     guests5AndAbove: 0,
     guestNames: [] as string[],
@@ -79,9 +78,6 @@ const Register = () => {
   const totalPrice =
     PRICE_PER_MEMBER + formData.guests5AndAbove * PRICE_PER_GUEST_5PLUS;
 
-  const requiresTransactionId =
-    formData.paymentMethod !== "" && formData.paymentMethod !== "manual";
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -105,10 +101,6 @@ const Register = () => {
       toast.error("Payment method is required");
       return;
     }
-    if (requiresTransactionId && !formData.transactionId.trim()) {
-      toast.error("Transaction ID is required for this payment method");
-      return;
-    }
     if (formData.religion === "Custom" && !formData.customReligion.trim()) {
       toast.error("Please enter your religion");
       return;
@@ -128,7 +120,6 @@ const Register = () => {
           customReligion: formData.customReligion || undefined,
           tShirtSize: formData.tShirtSize,
           paymentMethod: formData.paymentMethod,
-          transactionId: formData.transactionId || undefined,
           guestsUnder5: formData.guestsUnder5,
           guests5AndAbove: formData.guests5AndAbove,
           guestNames: formData.guestNames,
@@ -425,12 +416,7 @@ const Register = () => {
               <Label>Payment Method *</Label>
               <Select
                 value={formData.paymentMethod}
-                onValueChange={(v) => {
-                  update("paymentMethod", v);
-                  if (v === "manual") {
-                    update("transactionId", "");
-                  }
-                }}
+                onValueChange={(v) => update("paymentMethod", v)}
                 disabled={loading}>
                 <SelectTrigger className="bg-background/50">
                   <SelectValue placeholder="Select Payment Method" />
@@ -444,25 +430,6 @@ const Register = () => {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Transaction ID */}
-            {requiresTransactionId && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                className="space-y-1.5">
-                <Label htmlFor="txnId">Transaction ID *</Label>
-                <Input
-                  id="txnId"
-                  placeholder="Enter transaction ID"
-                  required
-                  className="bg-background/50"
-                  value={formData.transactionId}
-                  onChange={(e) => update("transactionId", e.target.value)}
-                  disabled={loading}
-                />
-              </motion.div>
-            )}
 
             {/* Summary */}
             <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 space-y-1 text-sm">

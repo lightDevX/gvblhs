@@ -158,7 +158,6 @@ const AdminRegistrations = () => {
       "Attendees",
       "T-Shirt",
       "Payment",
-      "TxnID",
       "Amount",
       "Status",
       "Date",
@@ -175,7 +174,6 @@ const AdminRegistrations = () => {
       String(r.totalAttendees),
       r.tShirtSize || "-",
       r.paymentMethod || "-",
-      r.transactionId || "-",
       String(r.amount),
       r.status,
       r.createdAt ? r.createdAt.split("T")[0] : "-",
@@ -195,7 +193,6 @@ const AdminRegistrations = () => {
       String(totalUnder5),
       String(total5Plus),
       String(totalPersons),
-      "",
       "",
       "",
       String(totalAmount),
@@ -269,7 +266,6 @@ const AdminRegistrations = () => {
         "Attendees",
         "T-Shirt",
         "Payment",
-        "TxnID",
         "Amount",
         "Status",
       ];
@@ -284,7 +280,6 @@ const AdminRegistrations = () => {
         String(r.totalAttendees),
         r.tShirtSize || "-",
         r.paymentMethod || "-",
-        r.transactionId || "-",
         String(r.amount),
         r.status,
       ]);
@@ -308,7 +303,6 @@ const AdminRegistrations = () => {
         String(batchUnder5),
         String(batch5Plus),
         String(batchPersons),
-        "",
         "",
         "",
         String(batchAmount),
@@ -475,7 +469,6 @@ const AdminRegistrations = () => {
                 <TableHead className="text-center">Attendees</TableHead>
                 <TableHead>T-Shirt</TableHead>
                 <TableHead>Payment</TableHead>
-                <TableHead>TxnID</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
@@ -486,7 +479,7 @@ const AdminRegistrations = () => {
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={16}
+                    colSpan={15}
                     className="text-center py-8 text-muted-foreground">
                     No registrations found
                   </TableCell>
@@ -582,9 +575,6 @@ const AdminRegistrations = () => {
                         <TableCell>{r.tShirtSize || "-"}</TableCell>
                         <TableCell className="capitalize">
                           {r.paymentMethod || "-"}
-                        </TableCell>
-                        <TableCell className="text-xs font-mono max-w-[120px] truncate">
-                          {r.transactionId || "-"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           &#x09F3;{r.amount}
