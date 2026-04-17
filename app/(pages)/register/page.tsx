@@ -19,13 +19,7 @@ import { toast } from "sonner";
 const RELIGIONS = ["Islam", "Hindu", "Christian", "Buddhist", "Custom"];
 const BATCHES = Array.from({ length: 11 }, (_, i) => String(2000 + i));
 const TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
-const PAYMENT_METHODS = [
-  { value: "bkash", label: "bKash" },
-  { value: "nagad", label: "Nagad" },
-  { value: "rocket", label: "Rocket" },
-  { value: "bank", label: "Bank" },
-  { value: "manual", label: "Manual Payment" },
-];
+const PAYMENT_METHODS = [{ value: "manual", label: "Manual Payment" }];
 
 const PRICE_PER_MEMBER = 800;
 const PRICE_PER_GUEST_5PLUS = 500;
