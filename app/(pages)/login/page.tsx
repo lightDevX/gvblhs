@@ -100,7 +100,7 @@ const AdminLogin = () => {
               <Input
                 id="password"
                 type="password"
-                placeholder="????????"
+                placeholder="********"
                 required
                 className="bg-background/50"
                 value={password}
@@ -108,7 +108,10 @@ const AdminLogin = () => {
                 disabled={loading}
               />
             </div>
-            <Button type="submit" className="w-full glow-gold-sm" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full glow-gold-sm"
+              disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>

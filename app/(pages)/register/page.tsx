@@ -20,7 +20,7 @@ const RELIGIONS = ["Islam", "Hindu", "Christian", "Buddhist", "Custom"];
 const BATCHES = Array.from({ length: 11 }, (_, i) => String(2000 + i));
 const TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
 const PAYMENT_METHODS = [
-  { value: "bkash", label: "Bkash" },
+  { value: "bkash", label: "bKash" },
   { value: "nagad", label: "Nagad" },
   { value: "rocket", label: "Rocket" },
   { value: "bank", label: "Bank" },
