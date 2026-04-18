@@ -36,6 +36,8 @@ const Register = () => {
     customReligion: "",
     tShirtSize: "",
     paymentMethod: "",
+    registeredBy: "myself" as "myself" | "custom",
+    customRegisteredBy: "",
     guestsUnder5: 0,
     guests5AndAbove: 0,
     guestNames: [] as string[],
@@ -99,6 +101,13 @@ const Register = () => {
       toast.error("Please enter your religion");
       return;
     }
+    if (
+      formData.registeredBy === "custom" &&
+      !formData.customRegisteredBy.trim()
+    ) {
+      toast.error("Please enter who registered this person");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -114,6 +123,10 @@ const Register = () => {
           customReligion: formData.customReligion || undefined,
           tShirtSize: formData.tShirtSize,
           paymentMethod: formData.paymentMethod,
+          registeredBy:
+            formData.registeredBy === "custom"
+              ? formData.customRegisteredBy
+              : "myself",
           guestsUnder5: formData.guestsUnder5,
           guests5AndAbove: formData.guests5AndAbove,
           guestNames: formData.guestNames,
@@ -300,6 +313,42 @@ const Register = () => {
                   className="bg-background/50"
                   value={formData.customReligion}
                   onChange={(e) => update("customReligion", e.target.value)}
+                  disabled={loading}
+                />
+              </motion.div>
+            )}
+
+            {/* Registered By */}
+            <div className="space-y-1.5">
+              <Label>Registered By *</Label>
+              <Select
+                value={formData.registeredBy}
+                onValueChange={(v) => update("registeredBy", v)}
+                disabled={loading}>
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="myself">Myself</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {formData.registeredBy === "custom" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="space-y-1.5">
+                <Label htmlFor="customRegisteredBy">
+                  Registered By (Name) *
+                </Label>
+                <Input
+                  id="customRegisteredBy"
+                  placeholder="Enter the name of the person registering"
+                  required
+                  className="bg-background/50"
+                  value={formData.customRegisteredBy}
+                  onChange={(e) => update("customRegisteredBy", e.target.value)}
                   disabled={loading}
                 />
               </motion.div>

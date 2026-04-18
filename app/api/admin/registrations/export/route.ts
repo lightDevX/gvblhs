@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
       totalAttendees: r.totalAttendees || 1,
       tShirtSize: r.tShirtSize || "",
       paymentMethod: r.paymentMethod || "",
+      registeredBy: r.registeredBy || "",
       transactionId: r.transactionId || "",
       amount: r.amount || 0,
       status: r.status || "pending",

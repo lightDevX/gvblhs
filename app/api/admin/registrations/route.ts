@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
       totalAttendees: r.totalAttendees || 1,
       tShirtSize: r.tShirtSize || null,
       paymentMethod: r.paymentMethod || null,
+      registeredBy: r.registeredBy || null,
       transactionId: r.transactionId || null,
       amount: r.amount || 0,
       status: r.status || "pending",

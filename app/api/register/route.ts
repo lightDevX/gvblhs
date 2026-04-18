@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
       typeof body.customReligion === "string" && body.customReligion.trim()
         ? body.customReligion.trim()
         : null;
+    const registeredBy =
+      typeof body.registeredBy === "string" && body.registeredBy.trim()
+        ? body.registeredBy.trim()
+        : "myself";
     const transactionId =
       typeof body.transactionId === "string" && body.transactionId.trim()
         ? body.transactionId.trim()
@@ -147,6 +151,7 @@ export async function POST(request: NextRequest) {
       email,
       batch,
       religion: resolvedReligion,
+      registeredBy,
       guestsUnder5,
       guests5AndAbove,
       guestNames,

@@ -49,6 +49,7 @@ interface Registration {
   totalAttendees: number;
   tShirtSize: string | null;
   paymentMethod: string | null;
+  registeredBy: string | null;
   transactionId: string | null;
   amount: number;
   status: string;
@@ -159,6 +160,7 @@ const AdminRegistrations = () => {
       "T-Shirt",
       "Payment",
       "Amount",
+      "Registered By",
       "Status",
       "Date",
     ];
@@ -175,6 +177,7 @@ const AdminRegistrations = () => {
       r.tShirtSize || "-",
       r.paymentMethod || "-",
       String(r.amount),
+      r.registeredBy || "myself",
       r.status,
       r.createdAt ? r.createdAt.split("T")[0] : "-",
     ]);
@@ -196,6 +199,7 @@ const AdminRegistrations = () => {
       "",
       "",
       String(totalAmount),
+      "",
       "",
       "",
     ]);
@@ -267,6 +271,7 @@ const AdminRegistrations = () => {
         "T-Shirt",
         "Payment",
         "Amount",
+        "Registered By",
         "Status",
       ];
 
@@ -281,6 +286,7 @@ const AdminRegistrations = () => {
         r.tShirtSize || "-",
         r.paymentMethod || "-",
         String(r.amount),
+        r.registeredBy || "myself",
         r.status,
       ]);
 
@@ -306,6 +312,7 @@ const AdminRegistrations = () => {
         "",
         "",
         String(batchAmount),
+        "",
         "",
       ]);
 
@@ -470,6 +477,7 @@ const AdminRegistrations = () => {
                 <TableHead>T-Shirt</TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Registered By</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -479,7 +487,7 @@ const AdminRegistrations = () => {
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={15}
+                    colSpan={16}
                     className="text-center py-8 text-muted-foreground">
                     No registrations found
                   </TableCell>
@@ -579,6 +587,9 @@ const AdminRegistrations = () => {
                         <TableCell className="text-right tabular-nums">
                           &#x09F3;{r.amount}
                         </TableCell>
+                        <TableCell className="text-sm capitalize">
+                          {r.registeredBy || "myself"}
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant="outline"
@@ -622,7 +633,7 @@ const AdminRegistrations = () => {
                       {/* Expanded guest details */}
                       {isExpanded && hasGuests && (
                         <TableRow className="bg-muted/20 hover:bg-muted/30">
-                          <TableCell colSpan={16} className="py-3 px-6">
+                          <TableCell colSpan={17} className="py-3 px-6">
                             <div className="ml-6">
                               <p className="text-xs font-semibold text-muted-foreground mb-2">
                                 Guests ({guestDetails.length})
