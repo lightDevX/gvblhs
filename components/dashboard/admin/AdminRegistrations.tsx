@@ -1,9 +1,26 @@
 ﻿"use client";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -19,6 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -27,12 +45,17 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  Edit,
   FileText,
+  Minus,
+  Plus,
+  RotateCcw,
   Search,
   ShieldAlert,
+  Trash2,
   XCircle,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 interface Registration {
@@ -53,10 +76,36 @@ interface Registration {
   transactionId: string | null;
   amount: number;
   status: string;
+  rejectionReason: string | null;
   createdAt: string;
 }
 
+interface EditFormData {
+  name: string;
+  mobile: string;
+  email: string;
+  batch: string;
+  religion: string;
+  tShirtSize: string;
+  paymentMethod: string;
+  transactionId: string;
+  registeredBy: string;
+  guestsUnder5: number;
+  guests5AndAbove: number;
+  guestNames: string[];
+}
+
 const BATCHES = Array.from({ length: 11 }, (_, i) => String(2000 + i));
+const TSHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+const PAYMENT_METHODS = [
+  { value: "bkash", label: "bKash" },
+  { value: "nagad", label: "Nagad" },
+  { value: "rocket", label: "Rocket" },
+  { value: "bank", label: "Bank" },
+  { value: "manual", label: "Manual" },
+];
+const PRICE_PER_MEMBER = 800;
+const PRICE_PER_GUEST_5PLUS = 500;
 
 const statusColor: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
@@ -74,6 +123,21 @@ const AdminRegistrations = () => {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Edit modal state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingReg, setEditingReg] = useState<Registration | null>(null);
+  const [editForm, setEditForm] = useState<EditFormData | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Confirm dialogs
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "reject" | "delete" | "restore" | "deleteGuest";
+    reg: Registration;
+    guestIndex?: number;
+    reason?: string;
+  } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
   useEffect(() => {
     if (!authLoading && user) {
       fetchRegistrations();
@@ -82,7 +146,7 @@ const AdminRegistrations = () => {
     }
   }, [user, authLoading]);
 
-  const fetchRegistrations = async () => {
+  const fetchRegistrations = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/registrations");
       if (res.ok) {
@@ -95,21 +159,43 @@ const AdminRegistrations = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const updateStatus = async (id: string, status: string) => {
+  const updateStatus = async (
+    id: string,
+    status: string,
+    rejectionReason?: string,
+  ) => {
     setUpdatingId(id);
     try {
+      const payload: Record<string, string> = { id, status };
+      if (rejectionReason) payload.rejectionReason = rejectionReason;
+
       const res = await fetch("/api/admin/registrations", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setRegistrations((prev) =>
-          prev.map((r) => (r.id === id ? { ...r, status } : r)),
+          prev.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  status,
+                  rejectionReason:
+                    status === "rejected" ? (rejectionReason ?? null) : null,
+                }
+              : r,
+          ),
         );
-        toast.success(`Registration ${status}`);
+        const label =
+          status === "pending"
+            ? "restored to pending"
+            : status === "approved"
+              ? "approved"
+              : "rejected";
+        toast.success(`Registration ${label}`);
       } else {
         const data = await res.json();
         toast.error(data.error || "Failed to update");
@@ -119,6 +205,191 @@ const AdminRegistrations = () => {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const deleteRegistration = async (id: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/admin/registrations?id=${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setRegistrations((prev) => prev.filter((r) => r.id !== id));
+        toast.success("Registration deleted");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to delete");
+      }
+    } catch {
+      toast.error("An error occurred");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // --- Edit modal helpers ---
+  const openEdit = (reg: Registration) => {
+    setEditingReg(reg);
+    setEditForm({
+      name: reg.name,
+      mobile: reg.mobile,
+      email: reg.email || "",
+      batch: reg.batch,
+      religion: reg.religion || "",
+      tShirtSize: reg.tShirtSize || "",
+      paymentMethod: reg.paymentMethod || "",
+      transactionId: reg.transactionId || "",
+      registeredBy: reg.registeredBy || "",
+      guestsUnder5: reg.guestsUnder5,
+      guests5AndAbove: reg.guests5AndAbove,
+      guestNames: [
+        ...reg.guestNames,
+        ...Array(
+          Math.max(
+            0,
+            reg.guestsUnder5 + reg.guests5AndAbove - reg.guestNames.length,
+          ),
+        ).fill(""),
+      ],
+    });
+    setEditOpen(true);
+  };
+
+  const updateEditField = (field: string, value: string | number) => {
+    setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const updateGuestCount = (
+    field: "guestsUnder5" | "guests5AndAbove",
+    delta: number,
+  ) => {
+    setEditForm((prev) => {
+      if (!prev) return prev;
+      const next = Math.max(0, Math.min(50, prev[field] + delta));
+      const updated = { ...prev, [field]: next };
+      const newTotal = updated.guestsUnder5 + updated.guests5AndAbove;
+      const names = [...updated.guestNames];
+      while (names.length < newTotal) names.push("");
+      if (names.length > newTotal) names.length = newTotal;
+      return { ...updated, guestNames: names };
+    });
+  };
+
+  const updateGuestName = (index: number, value: string) => {
+    setEditForm((prev) => {
+      if (!prev) return prev;
+      const names = [...prev.guestNames];
+      names[index] = value;
+      return { ...prev, guestNames: names };
+    });
+  };
+
+  const removeGuest = (index: number) => {
+    setEditForm((prev) => {
+      if (!prev) return prev;
+      const totalGuests = prev.guestsUnder5 + prev.guests5AndAbove;
+      if (totalGuests <= 0) return prev;
+
+      const names = [...prev.guestNames];
+      names.splice(index, 1);
+
+      // Determine which category the guest belonged to
+      const isUnder5 = index < prev.guestsUnder5;
+      return {
+        ...prev,
+        guestsUnder5: isUnder5 ? prev.guestsUnder5 - 1 : prev.guestsUnder5,
+        guests5AndAbove: isUnder5
+          ? prev.guests5AndAbove
+          : prev.guests5AndAbove - 1,
+        guestNames: names,
+      };
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editForm || !editingReg) return;
+    if (!editForm.name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+    if (!editForm.mobile.trim()) {
+      toast.error("Mobile is required");
+      return;
+    }
+    if (!editForm.batch) {
+      toast.error("Batch is required");
+      return;
+    }
+    if (!editForm.tShirtSize) {
+      toast.error("T-Shirt size is required");
+      return;
+    }
+    if (!editForm.paymentMethod) {
+      toast.error("Payment method is required");
+      return;
+    }
+
+    setEditSaving(true);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingReg.id,
+          name: editForm.name,
+          mobile: editForm.mobile,
+          email: editForm.email || null,
+          batch: editForm.batch,
+          religion: editForm.religion || null,
+          tShirtSize: editForm.tShirtSize,
+          paymentMethod: editForm.paymentMethod,
+          transactionId: editForm.transactionId || null,
+          registeredBy: editForm.registeredBy || null,
+          guestsUnder5: editForm.guestsUnder5,
+          guests5AndAbove: editForm.guests5AndAbove,
+          guestNames: editForm.guestNames,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.registration) {
+        setRegistrations((prev) =>
+          prev.map((r) => (r.id === editingReg.id ? data.registration : r)),
+        );
+        toast.success("Registration updated");
+        setEditOpen(false);
+        setEditingReg(null);
+        setEditForm(null);
+      } else {
+        toast.error(data.error || "Failed to update");
+      }
+    } catch {
+      toast.error("An error occurred");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  // --- Confirm action handler ---
+  const executeConfirmAction = async () => {
+    if (!confirmAction) return;
+    const { type, reg } = confirmAction;
+
+    if (type === "reject") {
+      await updateStatus(reg.id, "rejected", rejectReason || undefined);
+    } else if (type === "restore") {
+      await updateStatus(reg.id, "pending");
+    } else if (type === "delete") {
+      await deleteRegistration(reg.id);
+    } else if (
+      type === "deleteGuest" &&
+      confirmAction.guestIndex !== undefined
+    ) {
+      removeGuest(confirmAction.guestIndex);
+    }
+
+    setConfirmAction(null);
+    setRejectReason("");
   };
 
   const filtered = useMemo(() => {
@@ -136,6 +407,22 @@ const AdminRegistrations = () => {
       return true;
     });
   }, [registrations, search, batchFilter, statusFilter]);
+
+  // --- Summary counts ---
+  const counts = useMemo(() => {
+    const c = {
+      all: registrations.length,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+    };
+    for (const r of registrations) {
+      if (r.status === "pending") c.pending++;
+      else if (r.status === "approved") c.approved++;
+      else if (r.status === "rejected") c.rejected++;
+    }
+    return c;
+  }, [registrations]);
 
   const generatePDF = (data: Registration[], title: string) => {
     const doc = new jsPDF({ orientation: "landscape" });
@@ -361,6 +648,14 @@ const AdminRegistrations = () => {
     toast.success("Batch-wise PDF downloaded");
   };
 
+  // --- Edit form computed values ---
+  const editTotalGuests = editForm
+    ? editForm.guestsUnder5 + editForm.guests5AndAbove
+    : 0;
+  const editAmount = editForm
+    ? PRICE_PER_MEMBER + editForm.guests5AndAbove * PRICE_PER_GUEST_5PLUS
+    : 0;
+
   if (loading || authLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -383,6 +678,7 @@ const AdminRegistrations = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="font-heading text-2xl font-bold text-foreground">
@@ -408,6 +704,32 @@ const AdminRegistrations = () => {
             <FileText size={16} className="mr-1" /> Batch-wise PDF
           </Button>
         </div>
+      </div>
+
+      {/* Status tabs */}
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { key: "all", label: "All", count: counts.all },
+            { key: "pending", label: "Pending", count: counts.pending },
+            { key: "approved", label: "Approved", count: counts.approved },
+            { key: "rejected", label: "Rejected", count: counts.rejected },
+          ] as const
+        ).map((tab) => (
+          <Button
+            key={tab.key}
+            variant={statusFilter === tab.key ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter(tab.key)}
+            className="gap-1.5">
+            {tab.label}
+            <Badge
+              variant="secondary"
+              className="ml-0.5 text-xs px-1.5 min-w-5 justify-center">
+              {tab.count}
+            </Badge>
+          </Button>
+        ))}
       </div>
 
       {/* Filters */}
@@ -437,17 +759,6 @@ const AdminRegistrations = () => {
                     {b}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-32 bg-background/50">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -497,7 +808,6 @@ const AdminRegistrations = () => {
                   const isExpanded = expandedId === r.id;
                   const hasGuests = r.totalGuests > 0;
 
-                  // Build guest list with age category
                   const guestDetails: { name: string; ageCategory: string }[] =
                     [];
                   if (hasGuests) {
@@ -596,6 +906,13 @@ const AdminRegistrations = () => {
                             className={statusColor[r.status] || ""}>
                             {r.status}
                           </Badge>
+                          {r.status === "rejected" && r.rejectionReason && (
+                            <p
+                              className="text-xs text-red-400/70 mt-0.5 max-w-30 truncate"
+                              title={r.rejectionReason}>
+                              {r.rejectionReason}
+                            </p>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {r.createdAt
@@ -603,7 +920,19 @@ const AdminRegistrations = () => {
                             : "-"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
+                          <div className="flex gap-1 justify-end flex-wrap">
+                            {/* Edit */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10"
+                              onClick={() => openEdit(r)}
+                              disabled={updatingId === r.id}
+                              title="Edit">
+                              <Edit size={15} />
+                            </Button>
+
+                            {/* Approve */}
                             {r.status !== "approved" && (
                               <Button
                                 size="icon"
@@ -615,17 +944,49 @@ const AdminRegistrations = () => {
                                 <CheckCircle size={15} />
                               </Button>
                             )}
+
+                            {/* Reject (with confirmation) */}
                             {r.status !== "rejected" && (
                               <Button
                                 size="icon"
                                 variant="ghost"
                                 className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                                onClick={() => updateStatus(r.id, "rejected")}
+                                onClick={() =>
+                                  setConfirmAction({ type: "reject", reg: r })
+                                }
                                 disabled={updatingId === r.id}
                                 title="Reject">
                                 <XCircle size={15} />
                               </Button>
                             )}
+
+                            {/* Restore (for rejected) */}
+                            {r.status === "rejected" && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
+                                onClick={() =>
+                                  setConfirmAction({ type: "restore", reg: r })
+                                }
+                                disabled={updatingId === r.id}
+                                title="Restore to Pending">
+                                <RotateCcw size={15} />
+                              </Button>
+                            )}
+
+                            {/* Delete (with confirmation) */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-red-500/60 hover:text-red-400 hover:bg-red-500/10"
+                              onClick={() =>
+                                setConfirmAction({ type: "delete", reg: r })
+                              }
+                              disabled={updatingId === r.id}
+                              title="Delete">
+                              <Trash2 size={15} />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -633,7 +994,7 @@ const AdminRegistrations = () => {
                       {/* Expanded guest details */}
                       {isExpanded && hasGuests && (
                         <TableRow className="bg-muted/20 hover:bg-muted/30">
-                          <TableCell colSpan={17} className="py-3 px-6">
+                          <TableCell colSpan={16} className="py-3 px-6">
                             <div className="ml-6">
                               <p className="text-xs font-semibold text-muted-foreground mb-2">
                                 Guests ({guestDetails.length})
@@ -688,6 +1049,410 @@ const AdminRegistrations = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* ========== EDIT REGISTRATION DIALOG ========== */}
+      <Dialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditOpen(false);
+            setEditingReg(null);
+            setEditForm(null);
+          }
+        }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Registration</DialogTitle>
+          </DialogHeader>
+          {editForm && (
+            <div className="space-y-4">
+              {/* Name & Mobile */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Full Name *</Label>
+                  <Input
+                    value={editForm.name}
+                    onChange={(e) => updateEditField("name", e.target.value)}
+                    disabled={editSaving}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Mobile *</Label>
+                  <Input
+                    value={editForm.mobile}
+                    onChange={(e) => updateEditField("mobile", e.target.value)}
+                    disabled={editSaving}
+                  />
+                </div>
+              </div>
+
+              {/* Email & Batch */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => updateEditField("email", e.target.value)}
+                    disabled={editSaving}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Batch *</Label>
+                  <Select
+                    value={editForm.batch}
+                    onValueChange={(v) => updateEditField("batch", v)}
+                    disabled={editSaving}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BATCHES.map((b) => (
+                        <SelectItem key={b} value={b}>
+                          {b}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* T-shirt & Payment */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>T-Shirt Size *</Label>
+                  <Select
+                    value={editForm.tShirtSize}
+                    onValueChange={(v) => updateEditField("tShirtSize", v)}
+                    disabled={editSaving}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TSHIRT_SIZES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Payment Method *</Label>
+                  <Select
+                    value={editForm.paymentMethod}
+                    onValueChange={(v) => updateEditField("paymentMethod", v)}
+                    disabled={editSaving}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Transaction ID & Registered By */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Transaction ID</Label>
+                  <Input
+                    value={editForm.transactionId}
+                    onChange={(e) =>
+                      updateEditField("transactionId", e.target.value)
+                    }
+                    disabled={editSaving}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Registered By</Label>
+                  <Input
+                    value={editForm.registeredBy}
+                    onChange={(e) =>
+                      updateEditField("registeredBy", e.target.value)
+                    }
+                    disabled={editSaving}
+                  />
+                </div>
+              </div>
+
+              {/* Religion */}
+              <div className="space-y-1.5">
+                <Label>Religion</Label>
+                <Input
+                  value={editForm.religion}
+                  onChange={(e) => updateEditField("religion", e.target.value)}
+                  disabled={editSaving}
+                  placeholder="Optional"
+                />
+              </div>
+
+              {/* Guest management */}
+              <div className="border border-border/50 rounded-lg p-4 space-y-4">
+                <h4 className="font-semibold text-sm">Guest Management</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Guests Under 5 (Free)</Label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => updateGuestCount("guestsUnder5", -1)}
+                        disabled={editSaving || editForm.guestsUnder5 <= 0}>
+                        <Minus size={14} />
+                      </Button>
+                      <span className="w-8 text-center font-mono">
+                        {editForm.guestsUnder5}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => updateGuestCount("guestsUnder5", 1)}
+                        disabled={editSaving}>
+                        <Plus size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>
+                      Guests 5+ (&#x09F3;{PRICE_PER_GUEST_5PLUS} each)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => updateGuestCount("guests5AndAbove", -1)}
+                        disabled={editSaving || editForm.guests5AndAbove <= 0}>
+                        <Minus size={14} />
+                      </Button>
+                      <span className="w-8 text-center font-mono">
+                        {editForm.guests5AndAbove}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => updateGuestCount("guests5AndAbove", 1)}
+                        disabled={editSaving}>
+                        <Plus size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Guest names */}
+                {editTotalGuests > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">
+                      Guest Names ({editTotalGuests})
+                    </Label>
+                    {editForm.guestNames.map((name, gi) => {
+                      const isUnder5 = gi < editForm.guestsUnder5;
+                      return (
+                        <div key={gi} className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              isUnder5
+                                ? "bg-blue-500/15 text-blue-400 border-blue-500/30 text-xs shrink-0"
+                                : "bg-orange-500/15 text-orange-400 border-orange-500/30 text-xs shrink-0"
+                            }>
+                            {isUnder5 ? "<5" : "5+"}
+                          </Badge>
+                          <Input
+                            value={name}
+                            onChange={(e) =>
+                              updateGuestName(gi, e.target.value)
+                            }
+                            placeholder={`Guest ${gi + 1} name`}
+                            className="h-8 text-sm"
+                            disabled={editSaving}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-500/60 hover:text-red-400 shrink-0"
+                            onClick={() =>
+                              setConfirmAction({
+                                type: "deleteGuest",
+                                reg: editingReg!,
+                                guestIndex: gi,
+                              })
+                            }
+                            disabled={editSaving}
+                            title="Remove guest">
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Amount summary */}
+                <div className="text-sm text-muted-foreground pt-2 border-t border-border/30">
+                  Total attendees:{" "}
+                  <span className="font-semibold text-foreground">
+                    {1 + editTotalGuests}
+                  </span>{" "}
+                  | Amount:{" "}
+                  <span className="font-semibold text-foreground">
+                    &#x09F3;{editAmount}
+                  </span>
+                </div>
+              </div>
+
+              {/* Save button */}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditOpen(false)}
+                  disabled={editSaving}>
+                  Cancel
+                </Button>
+                <Button onClick={saveEdit} disabled={editSaving}>
+                  {editSaving ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving...
+                    </span>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== CONFIRMATION DIALOGS ========== */}
+
+      {/* Reject confirmation */}
+      <AlertDialog
+        open={confirmAction?.type === "reject"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmAction(null);
+            setRejectReason("");
+          }
+        }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Registration</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reject the registration for{" "}
+              <strong>{confirmAction?.reg.name}</strong>? The registration data
+              will be preserved and can be restored later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label className="text-sm">Rejection Reason (optional)</Label>
+            <Textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Enter a reason for rejection..."
+              rows={3}
+              maxLength={500}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={executeConfirmAction}>
+              Reject
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore confirmation */}
+      <AlertDialog
+        open={confirmAction?.type === "restore"}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Registration</AlertDialogTitle>
+            <AlertDialogDescription>
+              Restore <strong>{confirmAction?.reg.name}</strong>&apos;s
+              registration back to pending status?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeConfirmAction}>
+              Restore to Pending
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog
+        open={confirmAction?.type === "delete"}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Registration</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete{" "}
+              <strong>{confirmAction?.reg.name}</strong>&apos;s registration and
+              all associated data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={executeConfirmAction}>
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete guest confirmation */}
+      <AlertDialog
+        open={confirmAction?.type === "deleteGuest"}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Guest</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove this guest from the registration? The guest count and
+              amount will be recalculated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={executeConfirmAction}>
+              Remove Guest
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
