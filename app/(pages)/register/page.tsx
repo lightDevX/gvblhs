@@ -163,8 +163,11 @@ const Register = () => {
               Registration Successful!
             </h2>
             <p className="text-muted-foreground">
-              Your registration has been submitted. An admin will review your
-              payment and confirm your registration.
+              <span className="font-semibold text-foreground">
+                {formData.name}&apos;s
+              </span>{" "}
+              registration has been submitted. An admin will review the payment
+              and confirm the registration.
             </p>
             <p className="text-sm text-muted-foreground">
               Total: &#x09F3;{totalPrice} | Attendees: {totalAttendees}
