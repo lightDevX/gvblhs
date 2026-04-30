@@ -106,6 +106,7 @@ const PAYMENT_METHODS = [
 ];
 const PRICE_PER_MEMBER = 800;
 const PRICE_PER_GUEST_5PLUS = 500;
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 const statusColor: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
@@ -120,6 +121,8 @@ const AdminRegistrations = () => {
   const [search, setSearch] = useState("");
   const [batchFilter, setBatchFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [pageSize, setPageSize] = useState(20);
+  const [currentPage, setCurrentPage] = useState(1);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -407,6 +410,31 @@ const AdminRegistrations = () => {
       return true;
     });
   }, [registrations, search, batchFilter, statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setExpandedId(null);
+  }, [search, batchFilter, statusFilter]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filtered.length / pageSize)),
+    [filtered.length, pageSize],
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedRegistrations = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
+  const startItem =
+    filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, filtered.length);
 
   // --- Summary counts ---
   const counts = useMemo(() => {
@@ -769,284 +797,344 @@ const AdminRegistrations = () => {
       <Card className="glass border-border/50">
         <CardHeader className="pb-0">
           <CardTitle className="text-base">
-            Showing {filtered.length} of {registrations.length} registrations
+            Showing {startItem}-{endItem} of {filtered.length} filtered
+            registrations
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8"></TableHead>
-                <TableHead className="w-10">#</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Mobile</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Batch</TableHead>
-                <TableHead className="text-center">Under 5</TableHead>
-                <TableHead className="text-center">5+</TableHead>
-                <TableHead className="text-center">Attendees</TableHead>
-                <TableHead>T-Shirt</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Registered By</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
+        <CardContent className="p-0">
+          <div className="max-h-[65vh] overflow-auto no-scrollbar">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={16}
-                    className="text-center py-8 text-muted-foreground">
-                    No registrations found
-                  </TableCell>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead className="w-10">#</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Mobile</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Batch</TableHead>
+                  <TableHead className="text-center">Under 5</TableHead>
+                  <TableHead className="text-center">5+</TableHead>
+                  <TableHead className="text-center">Attendees</TableHead>
+                  <TableHead>T-Shirt</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Registered By</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ) : (
-                filtered.map((r, i) => {
-                  const isExpanded = expandedId === r.id;
-                  const hasGuests = r.totalGuests > 0;
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={16}
+                      className="text-center py-8 text-muted-foreground">
+                      No registrations found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedRegistrations.map((r, i) => {
+                    const isExpanded = expandedId === r.id;
+                    const hasGuests = r.totalGuests > 0;
 
-                  const guestDetails: { name: string; ageCategory: string }[] =
-                    [];
-                  if (hasGuests) {
-                    const under5Count = r.guestsUnder5 || 0;
-                    const above5Count = r.guests5AndAbove || 0;
-                    const names = r.guestNames || [];
+                    const guestDetails: {
+                      name: string;
+                      ageCategory: string;
+                    }[] = [];
+                    if (hasGuests) {
+                      const under5Count = r.guestsUnder5 || 0;
+                      const above5Count = r.guests5AndAbove || 0;
+                      const names = r.guestNames || [];
 
-                    for (let g = 0; g < under5Count; g++) {
-                      guestDetails.push({
-                        name: names[g] || `Guest ${g + 1}`,
-                        ageCategory: "Under 5",
-                      });
+                      for (let g = 0; g < under5Count; g++) {
+                        guestDetails.push({
+                          name: names[g] || `Guest ${g + 1}`,
+                          ageCategory: "Under 5",
+                        });
+                      }
+                      for (let g = 0; g < above5Count; g++) {
+                        guestDetails.push({
+                          name:
+                            names[under5Count + g] ||
+                            `Guest ${under5Count + g + 1}`,
+                          ageCategory: "5 and above",
+                        });
+                      }
                     }
-                    for (let g = 0; g < above5Count; g++) {
-                      guestDetails.push({
-                        name:
-                          names[under5Count + g] ||
-                          `Guest ${under5Count + g + 1}`,
-                        ageCategory: "5 and above",
-                      });
-                    }
-                  }
 
-                  return (
-                    <Fragment key={r.id}>
-                      <TableRow className={isExpanded ? "border-b-0" : ""}>
-                        <TableCell className="w-8 px-2">
-                          {hasGuests ? (
-                            <button
-                              onClick={() =>
-                                setExpandedId(isExpanded ? null : r.id)
-                              }
-                              className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition"
-                              title={
-                                isExpanded ? "Hide guests" : "Show guests"
-                              }>
-                              {isExpanded ? (
-                                <ChevronDown size={16} />
-                              ) : (
-                                <ChevronRight size={16} />
-                              )}
-                            </button>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {i + 1}
-                        </TableCell>
-                        <TableCell className="font-medium">{r.name}</TableCell>
-                        <TableCell className="text-sm">{r.mobile}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {r.email || "-"}
-                        </TableCell>
-                        <TableCell>{r.batch}</TableCell>
-                        <TableCell className="text-center">
-                          {r.guestsUnder5 > 0 ? (
-                            <button
-                              onClick={() =>
-                                setExpandedId(isExpanded ? null : r.id)
-                              }
-                              className="text-blue-400 hover:underline cursor-pointer">
-                              {r.guestsUnder5}
-                            </button>
-                          ) : (
-                            <span className="text-muted-foreground">0</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {r.guests5AndAbove > 0 ? (
-                            <button
-                              onClick={() =>
-                                setExpandedId(isExpanded ? null : r.id)
-                              }
-                              className="text-orange-400 hover:underline cursor-pointer">
-                              {r.guests5AndAbove}
-                            </button>
-                          ) : (
-                            <span className="text-muted-foreground">0</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {r.totalAttendees}
-                        </TableCell>
-                        <TableCell>{r.tShirtSize || "-"}</TableCell>
-                        <TableCell className="capitalize">
-                          {r.paymentMethod || "-"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          &#x09F3;{r.amount}
-                        </TableCell>
-                        <TableCell className="text-sm capitalize">
-                          {r.registeredBy || "myself"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={statusColor[r.status] || ""}>
-                            {r.status}
-                          </Badge>
-                          {r.status === "rejected" && r.rejectionReason && (
-                            <p
-                              className="text-xs text-red-400/70 mt-0.5 max-w-30 truncate"
-                              title={r.rejectionReason}>
-                              {r.rejectionReason}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {r.createdAt
-                            ? new Date(r.createdAt).toLocaleDateString()
-                            : "-"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end flex-wrap">
-                            {/* Edit */}
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10"
-                              onClick={() => openEdit(r)}
-                              disabled={updatingId === r.id}
-                              title="Edit">
-                              <Edit size={15} />
-                            </Button>
-
-                            {/* Approve */}
-                            {r.status !== "approved" && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-green-500 hover:text-green-400 hover:bg-green-500/10"
-                                onClick={() => updateStatus(r.id, "approved")}
-                                disabled={updatingId === r.id}
-                                title="Approve">
-                                <CheckCircle size={15} />
-                              </Button>
-                            )}
-
-                            {/* Reject (with confirmation) */}
-                            {r.status !== "rejected" && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10"
+                    return (
+                      <Fragment key={r.id}>
+                        <TableRow className={isExpanded ? "border-b-0" : ""}>
+                          <TableCell className="w-8 px-2">
+                            {hasGuests ? (
+                              <button
                                 onClick={() =>
-                                  setConfirmAction({ type: "reject", reg: r })
+                                  setExpandedId(isExpanded ? null : r.id)
                                 }
-                                disabled={updatingId === r.id}
-                                title="Reject">
-                                <XCircle size={15} />
-                              </Button>
-                            )}
-
-                            {/* Restore (for rejected) */}
-                            {r.status === "rejected" && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
+                                className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition"
+                                title={
+                                  isExpanded ? "Hide guests" : "Show guests"
+                                }>
+                                {isExpanded ? (
+                                  <ChevronDown size={16} />
+                                ) : (
+                                  <ChevronRight size={16} />
+                                )}
+                              </button>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {(currentPage - 1) * pageSize + i + 1}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {r.name}
+                          </TableCell>
+                          <TableCell className="text-sm">{r.mobile}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {r.email || "-"}
+                          </TableCell>
+                          <TableCell>{r.batch}</TableCell>
+                          <TableCell className="text-center">
+                            {r.guestsUnder5 > 0 ? (
+                              <button
                                 onClick={() =>
-                                  setConfirmAction({ type: "restore", reg: r })
+                                  setExpandedId(isExpanded ? null : r.id)
                                 }
-                                disabled={updatingId === r.id}
-                                title="Restore to Pending">
-                                <RotateCcw size={15} />
-                              </Button>
+                                className="text-blue-400 hover:underline cursor-pointer">
+                                {r.guestsUnder5}
+                              </button>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
                             )}
-
-                            {/* Delete (with confirmation) */}
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-red-500/60 hover:text-red-400 hover:bg-red-500/10"
-                              onClick={() =>
-                                setConfirmAction({ type: "delete", reg: r })
-                              }
-                              disabled={updatingId === r.id}
-                              title="Delete">
-                              <Trash2 size={15} />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-
-                      {/* Expanded guest details */}
-                      {isExpanded && hasGuests && (
-                        <TableRow className="bg-muted/20 hover:bg-muted/30">
-                          <TableCell colSpan={16} className="py-3 px-6">
-                            <div className="ml-6">
-                              <p className="text-xs font-semibold text-muted-foreground mb-2">
-                                Guests ({guestDetails.length})
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {r.guests5AndAbove > 0 ? (
+                              <button
+                                onClick={() =>
+                                  setExpandedId(isExpanded ? null : r.id)
+                                }
+                                className="text-orange-400 hover:underline cursor-pointer">
+                                {r.guests5AndAbove}
+                              </button>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {r.totalAttendees}
+                          </TableCell>
+                          <TableCell>{r.tShirtSize || "-"}</TableCell>
+                          <TableCell className="capitalize">
+                            {r.paymentMethod || "-"}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            &#x09F3;{r.amount}
+                          </TableCell>
+                          <TableCell className="text-sm capitalize">
+                            {r.registeredBy || "myself"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={statusColor[r.status] || ""}>
+                              {r.status}
+                            </Badge>
+                            {r.status === "rejected" && r.rejectionReason && (
+                              <p
+                                className="text-xs text-red-400/70 mt-0.5 max-w-30 truncate"
+                                title={r.rejectionReason}>
+                                {r.rejectionReason}
                               </p>
-                              <table className="w-auto text-sm border border-border/50 rounded-lg overflow-hidden">
-                                <thead>
-                                  <tr className="bg-muted/40">
-                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
-                                      #
-                                    </th>
-                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
-                                      Guest Name
-                                    </th>
-                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
-                                      Age Category
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {guestDetails.map((g, gi) => (
-                                    <tr
-                                      key={gi}
-                                      className="border-t border-border/30">
-                                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
-                                        {gi + 1}
-                                      </td>
-                                      <td className="px-3 py-1.5">{g.name}</td>
-                                      <td className="px-3 py-1.5">
-                                        <Badge
-                                          variant="outline"
-                                          className={
-                                            g.ageCategory === "Under 5"
-                                              ? "bg-blue-500/15 text-blue-400 border-blue-500/30 text-xs"
-                                              : "bg-orange-500/15 text-orange-400 border-orange-500/30 text-xs"
-                                          }>
-                                          {g.ageCategory}
-                                        </Badge>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {r.createdAt
+                              ? new Date(r.createdAt).toLocaleDateString()
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-1 justify-end flex-wrap">
+                              {/* Edit */}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10"
+                                onClick={() => openEdit(r)}
+                                disabled={updatingId === r.id}
+                                title="Edit">
+                                <Edit size={15} />
+                              </Button>
+
+                              {/* Approve */}
+                              {r.status !== "approved" && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-green-500 hover:text-green-400 hover:bg-green-500/10"
+                                  onClick={() => updateStatus(r.id, "approved")}
+                                  disabled={updatingId === r.id}
+                                  title="Approve">
+                                  <CheckCircle size={15} />
+                                </Button>
+                              )}
+
+                              {/* Reject (with confirmation) */}
+                              {r.status !== "rejected" && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10"
+                                  onClick={() =>
+                                    setConfirmAction({ type: "reject", reg: r })
+                                  }
+                                  disabled={updatingId === r.id}
+                                  title="Reject">
+                                  <XCircle size={15} />
+                                </Button>
+                              )}
+
+                              {/* Restore (for rejected) */}
+                              {r.status === "rejected" && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
+                                  onClick={() =>
+                                    setConfirmAction({
+                                      type: "restore",
+                                      reg: r,
+                                    })
+                                  }
+                                  disabled={updatingId === r.id}
+                                  title="Restore to Pending">
+                                  <RotateCcw size={15} />
+                                </Button>
+                              )}
+
+                              {/* Delete (with confirmation) */}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-red-500/60 hover:text-red-400 hover:bg-red-500/10"
+                                onClick={() =>
+                                  setConfirmAction({ type: "delete", reg: r })
+                                }
+                                disabled={updatingId === r.id}
+                                title="Delete">
+                                <Trash2 size={15} />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </Fragment>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+
+                        {/* Expanded guest details */}
+                        {isExpanded && hasGuests && (
+                          <TableRow className="bg-muted/20 hover:bg-muted/30">
+                            <TableCell colSpan={16} className="py-3 px-6">
+                              <div className="ml-6">
+                                <p className="text-xs font-semibold text-muted-foreground mb-2">
+                                  Guests ({guestDetails.length})
+                                </p>
+                                <table className="w-auto text-sm border border-border/50 rounded-lg overflow-hidden">
+                                  <thead>
+                                    <tr className="bg-muted/40">
+                                      <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
+                                        #
+                                      </th>
+                                      <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
+                                        Guest Name
+                                      </th>
+                                      <th className="px-3 py-1.5 text-left text-xs font-semibold text-muted-foreground">
+                                        Age Category
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {guestDetails.map((g, gi) => (
+                                      <tr
+                                        key={gi}
+                                        className="border-t border-border/30">
+                                        <td className="px-3 py-1.5 text-xs text-muted-foreground">
+                                          {gi + 1}
+                                        </td>
+                                        <td className="px-3 py-1.5">
+                                          {g.name}
+                                        </td>
+                                        <td className="px-3 py-1.5">
+                                          <Badge
+                                            variant="outline"
+                                            className={
+                                              g.ageCategory === "Under 5"
+                                                ? "bg-blue-500/15 text-blue-400 border-blue-500/30 text-xs"
+                                                : "bg-orange-500/15 text-orange-400 border-orange-500/30 text-xs"
+                                            }>
+                                            {g.ageCategory}
+                                          </Badge>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {filtered.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border/50">
+              <p className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </p>
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">Rows</Label>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(value) => {
+                      setPageSize(Number(value));
+                      setCurrentPage(1);
+                    }}>
+                    <SelectTrigger className="h-8 w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <SelectItem key={size} value={String(size)}>
+                          {size}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(1, prev - 1))
+                  }
+                  disabled={currentPage === 1}>
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                  }
+                  disabled={currentPage === totalPages}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

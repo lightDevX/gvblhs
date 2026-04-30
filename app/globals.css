@@ -172,4 +172,13 @@
   .glow-gold-sm {
     box-shadow: 0 0 15px -3px rgb(212 181 99 / 0.25);
   }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
